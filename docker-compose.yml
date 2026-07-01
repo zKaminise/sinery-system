@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sinery-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sinery
+      POSTGRES_PASSWORD: sinery
+      POSTGRES_DB: sinery_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - sinery_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  sinery_postgres_data:

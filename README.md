@@ -1,8 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Sinery System — sistema operacional inteligente para clínicas. Este é o
+projeto Next.js do produto SaaS (não o site institucional da Sinery, que é
+um projeto separado).
 
 ## Getting Started
 
-First, run the development server:
+First, configure the database — see [docs/setup-database.md](./docs/setup-database.md)
+for the full walkthrough (Docker or a free hosted Postgres, migrations, seed,
+Prisma Studio, `/api/health`). Quick version:
+
+```bash
+npm install
+cp .env.example .env   # fill in DATABASE_URL and AUTH_SECRET
+npm run db:push
+npm run db:seed
+```
+
+For login, sessions, and the AUTH_SECRET/provisional-password flow, see
+[docs/authentication.md](./docs/authentication.md).
+
+Then, run the development server:
 
 ```bash
 npm run dev

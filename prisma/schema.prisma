@@ -1,0 +1,396 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ClinicSegment {
+  ODONTOLOGY
+  PHYSIOTHERAPY
+  AESTHETICS
+  PSYCHOLOGY
+  MEDICAL
+  OTHER
+}
+
+enum ClinicStatus {
+  ACTIVE
+  INACTIVE
+  SETUP_PENDING
+  SUSPENDED
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  RECEPTIONIST
+  PROFESSIONAL
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProfessionalStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELLED
+  RESCHEDULED
+  COMPLETED
+  NO_SHOW
+}
+
+enum CreatedBySource {
+  USER
+  AI
+  SYSTEM
+}
+
+enum ConversationChannel {
+  WHATSAPP
+  INTERNAL_SIMULATOR
+}
+
+enum ConversationStatus {
+  AI_HANDLING
+  WAITING_HUMAN
+  HUMAN_HANDLING
+  CLOSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageSenderType {
+  PATIENT
+  AI
+  HUMAN
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Tenant root
+// ---------------------------------------------------------------------------
+
+/// Each Clinic is a tenant of the Sinery System SaaS. Every operational model
+/// below carries a clinicId so all queries can (and must) be scoped by tenant.
+model Clinic {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  legalName String?
+  document  String?
+  segment   ClinicSegment @default(ODONTOLOGY)
+  email     String?
+  phone     String?
+  whatsapp  String?
+  address   String?
+  city      String?
+  state     String?
+  logoUrl   String?
+  status    ClinicStatus  @default(SETUP_PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  settings      ClinicSettings?
+  aiSettings    AiSettings?
+  users         User[]
+  patients      Patient[]
+  professionals Professional[]
+  services      Service[]
+  workingHours  WorkingHour[]
+  appointments  Appointment[]
+  conversations Conversation[]
+  messages      Message[]
+  knowledgeBase AiKnowledgeBase[]
+  auditLogs     AuditLog[]
+
+  @@index([status])
+}
+
+/// Per-clinic operational configuration (business hours, slot size, AI toggles).
+model ClinicSettings {
+  id                     String   @id @default(cuid())
+  clinicId               String   @unique
+  timezone               String   @default("America/Sao_Paulo")
+  businessStartHour      Int?
+  businessEndHour        Int?
+  appointmentSlotMinutes Int      @default(30)
+  allowAiScheduling      Boolean  @default(false)
+  allowAiRescheduling    Boolean  @default(false)
+  allowAiCancellation    Boolean  @default(false)
+  aiTone                 String   @default("professional")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+/// System users. No real authentication yet — passwordHash/status fields are
+/// modeled now so the auth prompt can slot in without a schema migration.
+///
+/// Email uniqueness is scoped per clinic (clinicId + email), not global,
+/// because the same person's email may legitimately need an account in more
+/// than one clinic (e.g. a professional who works at two partner clinics).
+model User {
+  id                String     @id @default(cuid())
+  clinicId          String
+  name              String
+  email             String
+  passwordHash      String?
+  role              UserRole   @default(RECEPTIONIST)
+  status            UserStatus @default(INVITED)
+  temporaryPassword Boolean    @default(false)
+  firstLoginAt      DateTime?
+  passwordChangedAt DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  clinic                Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdAppointments   Appointment[]  @relation("AppointmentCreatedByUser")
+  assignedConversations Conversation[] @relation("ConversationAssignedUser")
+  auditLogs             AuditLog[]
+
+  @@unique([clinicId, email])
+}
+
+// ---------------------------------------------------------------------------
+// Core clinic data
+// ---------------------------------------------------------------------------
+
+model Patient {
+  id        String        @id @default(cuid())
+  clinicId  String
+  name      String
+  phone     String
+  email     String?
+  document  String?
+  birthDate DateTime?
+  notes     String?
+  source    String?
+  status    PatientStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments  Appointment[]
+  conversations Conversation[]
+
+  @@index([clinicId, phone])
+}
+
+model Professional {
+  id        String             @id @default(cuid())
+  clinicId  String
+  name      String
+  email     String?
+  phone     String?
+  specialty String?
+  status    ProfessionalStatus @default(ACTIVE)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  workingHours WorkingHour[]
+  appointments Appointment[]
+
+  @@index([clinicId, name])
+}
+
+model Service {
+  id              String        @id @default(cuid())
+  clinicId        String
+  name            String
+  description     String?
+  durationMinutes Int
+  priceInCents    Int?
+  status          ServiceStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([clinicId, name])
+}
+
+/// Weekly recurring availability per professional. dayOfWeek follows
+/// JavaScript's Date#getDay() convention: 0 = Sunday ... 6 = Saturday.
+/// startTime/endTime are stored as "HH:mm" strings to keep the model simple
+/// and timezone-agnostic; ClinicSettings.timezone is the source of truth for
+/// interpreting them.
+model WorkingHour {
+  id             String   @id @default(cuid())
+  clinicId       String
+  professionalId String
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([professionalId])
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  clinicId        String
+  patientId       String
+  professionalId  String
+  serviceId       String?
+  title           String?
+  startAt         DateTime
+  endAt           DateTime
+  status          AppointmentStatus @default(SCHEDULED)
+  notes           String?
+  createdByUserId String?
+  createdBySource CreatedBySource   @default(USER)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  service      Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("AppointmentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, startAt])
+}
+
+// ---------------------------------------------------------------------------
+// Conversations (future WhatsApp / Sinery Assist panel)
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id                String              @id @default(cuid())
+  clinicId          String
+  patientId         String?
+  channel           ConversationChannel @default(INTERNAL_SIMULATOR)
+  externalContactId String?
+  contactName       String?
+  contactPhone      String?
+  status            ConversationStatus  @default(AI_HANDLING)
+  assignedUserId    String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient?  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  assignedUser User?     @relation("ConversationAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages     Message[]
+
+  @@index([clinicId, contactPhone])
+}
+
+model Message {
+  id             String            @id @default(cuid())
+  clinicId       String
+  conversationId String
+  direction      MessageDirection
+  senderType     MessageSenderType
+  content        String
+  metadata       Json?
+  createdAt      DateTime          @default(now())
+
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([conversationId])
+}
+
+// ---------------------------------------------------------------------------
+// Sinery Assist (AI)
+// ---------------------------------------------------------------------------
+
+model AiSettings {
+  id                   String   @id @default(cuid())
+  clinicId             String   @unique
+  assistantName        String   @default("Sinery Assist")
+  enabled              Boolean  @default(false)
+  tone                 String   @default("professional")
+  fallbackToHuman      Boolean  @default(true)
+  humanFallbackMessage String?
+  canAnswerPricing     Boolean  @default(false)
+  canSchedule          Boolean  @default(false)
+  canReschedule        Boolean  @default(false)
+  canCancel            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+model AiKnowledgeBase {
+  id        String   @id @default(cuid())
+  clinicId  String
+  title     String
+  content   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  clinicId    String?
+  userId      String?
+  action      String
+  entity      String
+  entityId    String?
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, createdAt])
+}
