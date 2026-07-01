@@ -5,15 +5,23 @@ import { usePathname } from "next/navigation"
 import { Stethoscope, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { navItems } from "@/lib/nav"
+import { navItems, getNavItemsForRole, type NavItem } from "@/lib/nav"
 import { Button } from "@/components/ui/button"
+import type { UserRole } from "@/lib/generated/prisma/client"
 
 interface SidebarProps {
+  role?: UserRole | null
   mobileOpen?: boolean
   onClose?: () => void
 }
 
-export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
+export function Sidebar({ role, mobileOpen = false, onClose }: SidebarProps) {
+  // Role-gated items (e.g. Auditoria) are hidden for roles that lack access.
+  // When role is unknown, fall back to items that aren't role-restricted.
+  const items = role
+    ? getNavItemsForRole(role)
+    : navItems.filter((item) => !item.roles)
+
   return (
     <>
       {mobileOpen && (
@@ -53,7 +61,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map((item) => (
+          {items.map((item) => (
             <SidebarLink key={item.href} item={item} onNavigate={onClose} />
           ))}
         </nav>
@@ -72,7 +80,7 @@ function SidebarLink({
   item,
   onNavigate,
 }: {
-  item: (typeof navItems)[number]
+  item: NavItem
   onNavigate?: () => void
 }) {
   const pathname = usePathname()

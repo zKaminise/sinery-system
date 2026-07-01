@@ -8,6 +8,7 @@ import {
   getSessionFromCookies,
 } from "@/lib/session"
 import { createAuditLog } from "@/lib/audit"
+import { AuditAction } from "@/lib/audit-actions"
 
 const GENERIC_LOGIN_ERROR = "E-mail ou senha inválidos."
 
@@ -49,7 +50,7 @@ export async function login(emailInput: string, password: string): Promise<AuthR
     await createAuditLog({
       clinicId: user?.clinicId ?? null,
       userId: user?.id ?? null,
-      action: "AUTH_LOGIN_FAILED",
+      action: AuditAction.AUTH_LOGIN_FAILED,
       entity: "User",
       entityId: user?.id ?? null,
       description: "Tentativa de login falhou.",
@@ -74,7 +75,7 @@ export async function login(emailInput: string, password: string): Promise<AuthR
   await createAuditLog({
     clinicId: user.clinicId,
     userId: user.id,
-    action: "AUTH_LOGIN_SUCCESS",
+    action: AuditAction.AUTH_LOGIN_SUCCESS,
     entity: "User",
     entityId: user.id,
     description: `Usuário ${user.name} realizou login.`,
@@ -92,7 +93,7 @@ export async function logout(): Promise<void> {
     await createAuditLog({
       clinicId: session.clinicId,
       userId: session.userId,
-      action: "AUTH_LOGOUT",
+      action: AuditAction.AUTH_LOGOUT,
       entity: "User",
       entityId: session.userId,
       description: "Usuário realizou logout.",
@@ -126,7 +127,7 @@ export async function changePassword(newPassword: string): Promise<AuthResult> {
   await createAuditLog({
     clinicId: user.clinicId,
     userId: user.id,
-    action: "AUTH_PASSWORD_CHANGED",
+    action: AuditAction.AUTH_PASSWORD_CHANGED,
     entity: "User",
     entityId: user.id,
     description: `Usuário ${user.name} alterou a senha${wasTemporary ? " provisória" : ""}.`,

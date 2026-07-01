@@ -14,6 +14,8 @@ const PROTECTED_PREFIXES = [
   "/profissionais",
   "/servicos",
   "/assist",
+  "/auditoria",
+  "/status",
   "/configuracoes",
   "/alterar-senha",
 ]

@@ -17,7 +17,11 @@ export function AppShell({ children, user, clinicName }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <Sidebar
+        role={user?.role ?? null}
+        mobileOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header

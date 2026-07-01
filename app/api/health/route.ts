@@ -1,31 +1,21 @@
 import { NextResponse } from "next/server"
 
-import { prisma } from "@/lib/prisma"
+import { logger } from "@/lib/logger"
 
+const APP_NAME = "Sinery System"
+
+/**
+ * Lightweight liveness probe — no database access, so it stays fast and cheap
+ * for frequent external monitoring (e.g. UptimeRobot hitting it every minute).
+ * For a database-aware check, use /api/health/deep.
+ */
 export async function GET() {
-  const timestamp = new Date().toISOString()
-  const environment = process.env.NODE_ENV ?? "development"
+  logger.debug("Health check executed", { context: "health" })
 
-  try {
-    await prisma.$queryRaw`SELECT 1`
-
-    return NextResponse.json({
-      status: "ok",
-      database: "ok",
-      timestamp,
-      environment,
-    })
-  } catch (error) {
-    console.error("[/api/health] database check failed:", error)
-
-    return NextResponse.json(
-      {
-        status: "error",
-        database: "error",
-        timestamp,
-        environment,
-      },
-      { status: 503 }
-    )
-  }
+  return NextResponse.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV ?? "development",
+    app: APP_NAME,
+  })
 }

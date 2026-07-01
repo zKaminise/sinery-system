@@ -254,6 +254,10 @@ async function main() {
     )
   )
 
+  // Sample audit logs across several event types so the /auditoria screen has
+  // realistic, varied content out of the box. This stays idempotent because
+  // deleting the clinic above cascade-deletes its previous audit logs, so
+  // re-running the seed never accumulates duplicates.
   await prisma.auditLog.createMany({
     data: [
       {
@@ -275,10 +279,41 @@ async function main() {
       {
         clinicId: clinic.id,
         userId: owner.id,
+        action: "PATIENT_CREATED",
+        entity: "Patient",
+        entityId: patientMariana.id,
+        description: "Paciente Mariana Alves cadastrada via seed",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
         action: "APPOINTMENT_CREATED",
         entity: "Appointment",
         entityId: appointments[0].id,
         description: "Agendamento de exemplo criado via seed",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "AUTH_LOGIN_SUCCESS",
+        entity: "User",
+        entityId: owner.id,
+        description: "Usuário Gabriel Admin realizou login (exemplo de seed).",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "AUTH_PASSWORD_CHANGED",
+        entity: "User",
+        entityId: owner.id,
+        description: "Usuário Gabriel Admin alterou a senha (exemplo de seed).",
+      },
+      {
+        clinicId: clinic.id,
+        userId: null,
+        action: "SYSTEM_HEALTH_CHECK",
+        entity: "System",
+        description: "Verificação de saúde executada (exemplo de seed).",
       },
     ],
   })
