@@ -11,6 +11,7 @@ export type ApiErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
+  | "CONFLICT"
   | "VALIDATION_ERROR"
   | "INTERNAL_ERROR"
   | "SERVICE_UNAVAILABLE"
@@ -76,6 +77,8 @@ function defaultCodeForStatus(status: number): ApiErrorCode {
       return "FORBIDDEN"
     case 404:
       return "NOT_FOUND"
+    case 409:
+      return "CONFLICT"
     case 422:
       return "VALIDATION_ERROR"
     case 503:

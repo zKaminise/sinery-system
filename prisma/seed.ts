@@ -70,6 +70,32 @@ async function main() {
     },
   })
 
+  // Additional seeded users so the /configuracoes user list is realistic.
+  // All share the dev-only provisional password (Sinery@123) and must change
+  // it on first login. Idempotent: the clinic delete above cascades to users.
+  await prisma.user.createMany({
+    data: [
+      {
+        clinicId: clinic.id,
+        name: "Mariana Recepção",
+        email: "recepcao@sorriaodonto.com.br",
+        passwordHash: ownerPasswordHash,
+        role: "RECEPTIONIST",
+        status: "ACTIVE",
+        temporaryPassword: true,
+      },
+      {
+        clinicId: clinic.id,
+        name: "Dr. Felipe",
+        email: "felipe@sorriaodonto.com.br",
+        passwordHash: ownerPasswordHash,
+        role: "PROFESSIONAL",
+        status: "ACTIVE",
+        temporaryPassword: true,
+      },
+    ],
+  })
+
   const [drBeatriz, drRafael] = await Promise.all([
     prisma.professional.create({
       data: {
@@ -114,37 +140,64 @@ async function main() {
     ]),
   })
 
-  const [patientMariana, patientJoao, patientCarla] = await Promise.all([
-    prisma.patient.create({
-      data: {
-        clinicId: clinic.id,
-        name: "Mariana Alves",
-        phone: "5511977770001",
-        email: "mariana.alves@example.com",
-        source: "Instagram",
-        status: "ACTIVE",
-      },
-    }),
-    prisma.patient.create({
-      data: {
-        clinicId: clinic.id,
-        name: "João Pedro Souza",
-        phone: "5511977770002",
-        source: "Indicação",
-        status: "ACTIVE",
-      },
-    }),
-    prisma.patient.create({
-      data: {
-        clinicId: clinic.id,
-        name: "Carla Mendes",
-        phone: "5511977770003",
-        email: "carla.mendes@example.com",
-        source: "Google",
-        status: "ACTIVE",
-      },
-    }),
-  ])
+  const [patientMariana, patientJoao, patientCarla, patientAna, patientCarlos] =
+    await Promise.all([
+      prisma.patient.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Mariana Alves",
+          phone: "5511977770001",
+          email: "mariana.alves@example.com",
+          document: "123.456.789-01",
+          birthDate: new Date("1990-04-12"),
+          source: "Instagram",
+          notes: "Prefere agendamentos no período da manhã.",
+          status: "ACTIVE",
+        },
+      }),
+      prisma.patient.create({
+        data: {
+          clinicId: clinic.id,
+          name: "João Pedro Souza",
+          phone: "5511977770002",
+          birthDate: new Date("1985-09-23"),
+          source: "Indicação",
+          status: "ACTIVE",
+        },
+      }),
+      prisma.patient.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Carla Mendes",
+          phone: "5511977770003",
+          email: "carla.mendes@example.com",
+          source: "Google",
+          status: "ACTIVE",
+        },
+      }),
+      prisma.patient.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Ana Carolina Ferreira",
+          phone: "5511977770004",
+          email: "ana.ferreira@example.com",
+          document: "987.654.321-00",
+          birthDate: new Date("1998-01-30"),
+          source: "WhatsApp",
+          notes: "Paciente com histórico de sensibilidade dentária.",
+          status: "ACTIVE",
+        },
+      }),
+      prisma.patient.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Carlos Eduardo Santos",
+          phone: "5511977770005",
+          source: "Site",
+          status: "INACTIVE",
+        },
+      }),
+    ])
 
   const [servicoLimpeza, servicoAvaliacao, servicoClareamento, servicoExtracao] =
     await Promise.all([
@@ -287,6 +340,23 @@ async function main() {
       {
         clinicId: clinic.id,
         userId: owner.id,
+        action: "PATIENT_CREATED",
+        entity: "Patient",
+        entityId: patientAna.id,
+        description: "Paciente Ana Carolina Ferreira foi cadastrado.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "PATIENT_STATUS_CHANGED",
+        entity: "Patient",
+        entityId: patientCarlos.id,
+        description: "Status do paciente Carlos Eduardo Santos foi alterado para inativo.",
+        metadata: { from: "ACTIVE", to: "INACTIVE" },
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
         action: "APPOINTMENT_CREATED",
         entity: "Appointment",
         entityId: appointments[0].id,
@@ -321,7 +391,8 @@ async function main() {
   console.log("Seed concluído:")
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
-  console.log(`  Profissionais: 2, Pacientes: 3, Serviços: 4, Agendamentos: ${appointments.length}`)
+  console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
+  console.log(`  Profissionais: 2, Pacientes: 5, Serviços: 4, Agendamentos: ${appointments.length}`)
 }
 
 main()

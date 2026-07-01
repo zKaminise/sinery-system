@@ -1,7 +1,27 @@
 import "server-only"
+import { randomInt } from "node:crypto"
 import bcrypt from "bcryptjs"
 
 const SALT_ROUNDS = 10
+
+// Excludes visually ambiguous characters (0/O, 1/l/I) to make the one-time
+// provisional password easier to read and copy by hand.
+const PROVISIONAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+
+/**
+ * Generates a strong one-time provisional password of the form
+ * `Sinery@` + 8 cryptographically-random characters. It always satisfies the
+ * change-password policy (>=8 chars, at least one letter and one number).
+ * The plaintext is returned so it can be shown to an admin exactly once —
+ * only the bcrypt hash is ever persisted.
+ */
+export function generateProvisionalPassword(): string {
+  let suffix = ""
+  for (let i = 0; i < 8; i++) {
+    suffix += PROVISIONAL_ALPHABET[randomInt(PROVISIONAL_ALPHABET.length)]
+  }
+  return `Sinery@${suffix}`
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS)
