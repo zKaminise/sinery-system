@@ -68,6 +68,19 @@ export const AuditAction = {
   APPOINTMENT_NO_SHOW: "APPOINTMENT_NO_SHOW",
   APPOINTMENT_ACCESS_DENIED: "APPOINTMENT_ACCESS_DENIED",
 
+  // Conversations (central de atendimento)
+  CONVERSATION_CREATED: "CONVERSATION_CREATED",
+  CONVERSATION_UPDATED: "CONVERSATION_UPDATED",
+  CONVERSATION_TAKEN: "CONVERSATION_TAKEN",
+  CONVERSATION_ASSIGNED: "CONVERSATION_ASSIGNED",
+  CONVERSATION_TRANSFERRED_TO_HUMAN: "CONVERSATION_TRANSFERRED_TO_HUMAN",
+  CONVERSATION_RETURNED_TO_AI: "CONVERSATION_RETURNED_TO_AI",
+  CONVERSATION_CLOSED: "CONVERSATION_CLOSED",
+  CONVERSATION_REOPENED: "CONVERSATION_REOPENED",
+  CONVERSATION_ACCESS_DENIED: "CONVERSATION_ACCESS_DENIED",
+  MESSAGE_SENT: "MESSAGE_SENT",
+  MESSAGE_RECEIVED_SIMULATED: "MESSAGE_RECEIVED_SIMULATED",
+
   // Other domain events (used in seed samples)
   CLINIC_CREATED: "CLINIC_CREATED",
   USER_CREATED: "USER_CREATED",
@@ -119,6 +132,17 @@ export const auditActionLabels: Record<string, string> = {
   APPOINTMENT_COMPLETED: "Consulta concluída",
   APPOINTMENT_NO_SHOW: "Falta registrada",
   APPOINTMENT_ACCESS_DENIED: "Acesso negado",
+  CONVERSATION_CREATED: "Conversa criada",
+  CONVERSATION_UPDATED: "Conversa atualizada",
+  CONVERSATION_TAKEN: "Atendimento assumido",
+  CONVERSATION_ASSIGNED: "Conversa atribuída",
+  CONVERSATION_TRANSFERRED_TO_HUMAN: "Transferida para humano",
+  CONVERSATION_RETURNED_TO_AI: "Devolvida para Sinery Assist",
+  CONVERSATION_CLOSED: "Conversa encerrada",
+  CONVERSATION_REOPENED: "Conversa reaberta",
+  CONVERSATION_ACCESS_DENIED: "Acesso negado",
+  MESSAGE_SENT: "Mensagem enviada",
+  MESSAGE_RECEIVED_SIMULATED: "Mensagem recebida (simulada)",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
 }
@@ -142,7 +166,8 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "SERVICE_ACCESS_DENIED" ||
     action === "APPOINTMENT_ACCESS_DENIED" ||
     action === "APPOINTMENT_CANCELLED" ||
-    action === "APPOINTMENT_NO_SHOW"
+    action === "APPOINTMENT_NO_SHOW" ||
+    action === "CONVERSATION_ACCESS_DENIED"
   ) {
     return "danger"
   }
@@ -157,7 +182,10 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "SERVICE_STATUS_CHANGED" ||
     action === "WORKING_HOUR_DELETED" ||
     action === "PROFESSIONAL_SERVICE_UNLINKED" ||
-    action === "APPOINTMENT_RESCHEDULED"
+    action === "APPOINTMENT_RESCHEDULED" ||
+    action === "CONVERSATION_CLOSED" ||
+    action === "CONVERSATION_TRANSFERRED_TO_HUMAN" ||
+    action === "CONVERSATION_RETURNED_TO_AI"
   ) {
     return "warning"
   }
@@ -166,7 +194,9 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action.endsWith("_CREATED") ||
     action === "PROFESSIONAL_SERVICE_LINKED" ||
     action === "APPOINTMENT_CONFIRMED" ||
-    action === "APPOINTMENT_COMPLETED"
+    action === "APPOINTMENT_COMPLETED" ||
+    action === "CONVERSATION_TAKEN" ||
+    action === "CONVERSATION_REOPENED"
   ) {
     return "success"
   }

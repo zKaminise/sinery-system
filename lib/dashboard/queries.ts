@@ -61,9 +61,13 @@ export interface DashboardData {
     servicesWithoutProfessionals: DashboardAlertProfessional[]
   }
   assist: {
-    aiHandledConversations: number
+    // Real conversation-status counts (honest workflow metrics — see
+    // docs/dashboard.md). "Sinery Assist" is still just a status label; no AI
+    // is actually handling anything yet.
+    withAssist: number
+    waitingHuman: number
+    humanHandling: number
     aiScheduledAppointments: number
-    pendingConversations: number
   }
 }
 
@@ -135,9 +139,8 @@ export async function getDashboardData(clinicId: string): Promise<DashboardData>
     archivedPatients,
     professionalsForAlerts,
     servicesWithoutProfessionals,
-    aiHandledConversations,
+    conversationsGrouped,
     aiScheduledAppointments,
-    pendingConversations,
   ] = await Promise.all([
     prisma.appointment.findMany({
       where: { clinicId, startAt: { gte: todayRange.start, lt: todayRange.end } },
@@ -196,10 +199,14 @@ export async function getDashboardData(clinicId: string): Promise<DashboardData>
       },
       select: { id: true, name: true },
     }),
-    prisma.conversation.count({ where: { clinicId, messages: { some: { senderType: "AI" } } } }),
+    prisma.conversation.groupBy({ by: ["status"], where: { clinicId }, _count: true }),
     prisma.appointment.count({ where: { clinicId, createdBySource: "AI" } }),
-    prisma.conversation.count({ where: { clinicId, status: "WAITING_HUMAN" } }),
   ])
+
+  // Honest conversation-status counts. No AI actually handles anything yet —
+  // "with Assist" is just the AI_HANDLING status.
+  const conversationCounts = { AI_HANDLING: 0, WAITING_HUMAN: 0, HUMAN_HANDLING: 0, CLOSED: 0 }
+  for (const g of conversationsGrouped) conversationCounts[g.status] = g._count
 
   const week = { total: 0, confirmed: 0, cancelled: 0, completed: 0, noShow: 0 }
   let cancelledThisWeek = 0
@@ -247,9 +254,10 @@ export async function getDashboardData(clinicId: string): Promise<DashboardData>
       servicesWithoutProfessionals,
     },
     assist: {
-      aiHandledConversations,
+      withAssist: conversationCounts.AI_HANDLING,
+      waitingHuman: conversationCounts.WAITING_HUMAN,
+      humanHandling: conversationCounts.HUMAN_HANDLING,
       aiScheduledAppointments,
-      pendingConversations,
     },
   }
 }

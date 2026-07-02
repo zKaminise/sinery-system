@@ -9,9 +9,9 @@ interface AssistPreviewCardProps {
 
 export function AssistPreviewCard({ assist }: AssistPreviewCardProps) {
   const stats: { label: string; value: number }[] = [
-    { label: "Atendimentos pela IA", value: assist.aiHandledConversations },
+    { label: "Com Sinery Assist", value: assist.withAssist },
+    { label: "Aguardando humano", value: assist.waitingHuman },
     { label: "Agendamentos pela IA", value: assist.aiScheduledAppointments },
-    { label: "Conversas pendentes", value: assist.pendingConversations },
   ]
 
   return (

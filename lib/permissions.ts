@@ -194,3 +194,28 @@ export function canChangeServiceStatus(role: UserRole): boolean {
 export function canManageAppointments(role: UserRole): boolean {
   return role !== "PROFESSIONAL"
 }
+
+// ---------------------------------------------------------------------------
+// Conversations (central de atendimento)
+// ---------------------------------------------------------------------------
+//
+// Per product decision (V1): OWNER, ADMIN and RECEPTIONIST can operate the
+// inbox — create test conversations, send human messages, take/transfer/
+// return-to-AI/close/reopen. PROFESSIONAL is read-only: they can open the
+// inbox and read threads for operational awareness, but every mutation is a
+// front-desk action. Every mutation is enforced server-side, not just hidden.
+//
+// Assigning a conversation to *another* user is an OWNER/ADMIN action.
+// RECEPTIONIST can still assign a conversation to themselves implicitly by
+// taking it (the "assumir" action), so they never need the assign-to-others
+// control.
+
+/** All authenticated roles can view the inbox and read threads. */
+export function canManageConversations(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+/** Only OWNER/ADMIN may assign a conversation to an arbitrary clinic user. */
+export function canAssignConversationToOthers(role: UserRole): boolean {
+  return isOwnerOrAdmin(role)
+}

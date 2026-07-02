@@ -593,11 +593,115 @@ async function main() {
     ],
   })
 
+  // Test conversations (channel INTERNAL_SIMULATOR) so the /conversas inbox has
+  // realistic content. Idempotent: the clinic delete above cascades to
+  // conversations + messages, so re-seeding never duplicates them. Message
+  // createdAt values are set explicitly to keep the thread order stable.
+  const receptionist = await prisma.user.findFirst({
+    where: { clinicId: clinic.id, role: "RECEPTIONIST" },
+    select: { id: true, name: true },
+  })
+  const baseTime = Date.now()
+  const at = (minutesAgo: number) => new Date(baseTime - minutesAgo * 60_000)
+
+  async function seedConversation(input: {
+    patient: { id: string; name: string; phone: string }
+    status: "AI_HANDLING" | "WAITING_HUMAN" | "HUMAN_HANDLING" | "CLOSED"
+    assignedUserId?: string | null
+    messages: {
+      direction: "INBOUND" | "OUTBOUND"
+      senderType: "PATIENT" | "AI" | "HUMAN" | "SYSTEM"
+      content: string
+      minutesAgo: number
+      metadata?: { userId: string; userName: string }
+    }[]
+  }) {
+    const conversation = await prisma.conversation.create({
+      data: {
+        clinicId: clinic.id,
+        patientId: input.patient.id,
+        channel: "INTERNAL_SIMULATOR",
+        status: input.status,
+        contactName: input.patient.name,
+        contactPhone: input.patient.phone,
+        assignedUserId: input.assignedUserId ?? null,
+      },
+    })
+    await prisma.message.createMany({
+      data: input.messages.map((m) => ({
+        clinicId: clinic.id,
+        conversationId: conversation.id,
+        direction: m.direction,
+        senderType: m.senderType,
+        content: m.content,
+        metadata: m.metadata,
+        createdAt: at(m.minutesAgo),
+      })),
+    })
+    return conversation
+  }
+
+  await seedConversation({
+    patient: patientMariana,
+    status: "WAITING_HUMAN",
+    messages: [
+      { direction: "OUTBOUND", senderType: "SYSTEM", content: "Conversa criada em modo de teste interno.", minutesAgo: 61 },
+      { direction: "INBOUND", senderType: "PATIENT", content: "Olá, gostaria de marcar uma limpeza.", minutesAgo: 60 },
+    ],
+  })
+
+  await seedConversation({
+    patient: patientJoao,
+    status: "HUMAN_HANDLING",
+    assignedUserId: receptionist?.id ?? null,
+    messages: [
+      { direction: "INBOUND", senderType: "PATIENT", content: "Quero confirmar meu horário de hoje.", minutesAgo: 45 },
+      {
+        direction: "OUTBOUND",
+        senderType: "HUMAN",
+        content: "Olá, João! Seu horário está confirmado.",
+        minutesAgo: 43,
+        metadata: receptionist ? { userId: receptionist.id, userName: receptionist.name } : undefined,
+      },
+    ],
+  })
+
+  await seedConversation({
+    patient: patientAna,
+    status: "AI_HANDLING",
+    messages: [
+      { direction: "INBOUND", senderType: "PATIENT", content: "Vocês têm horário amanhã à tarde?", minutesAgo: 30 },
+      {
+        direction: "OUTBOUND",
+        senderType: "AI",
+        content: "A Sinery Assist será implementada nas próximas etapas. Esta é uma mensagem de demonstração.",
+        minutesAgo: 29,
+      },
+    ],
+  })
+
+  await seedConversation({
+    patient: patientCarla,
+    status: "CLOSED",
+    messages: [
+      { direction: "INBOUND", senderType: "PATIENT", content: "Obrigado!", minutesAgo: 120 },
+      {
+        direction: "OUTBOUND",
+        senderType: "HUMAN",
+        content: "Nós que agradecemos. Até breve!",
+        minutesAgo: 119,
+        metadata: receptionist ? { userId: receptionist.id, userName: receptionist.name } : undefined,
+      },
+      { direction: "OUTBOUND", senderType: "SYSTEM", content: "Conversa encerrada.", minutesAgo: 118 },
+    ],
+  })
+
   console.log("Seed concluído:")
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
   console.log(`  Profissionais: 4, Pacientes: 5, Serviços: 6, Vínculos: 7, Agendamentos: ${appointments.length}`)
+  console.log(`  Conversas de teste: 4 (WAITING_HUMAN, HUMAN_HANDLING, AI_HANDLING, CLOSED)`)
 }
 
 main()

@@ -45,12 +45,13 @@ com `Promise.all` (sem N+1, sem waterfalls). Definições:
   o resumo responde "como está indo esta semana".
 - **Próximas consultas**: consultas com `startAt` a partir do início do dia
   seguinte a hoje, status não-terminal, limitadas a 6, ordenadas por data.
-- **Sinery Assist**: `agendamentosPelaIA` conta `Appointment` com
-  `createdBySource = "AI"` (campo real do schema); `atendimentosPelaIA` conta
-  `Conversation`s com ao menos uma `Message` de `senderType = "AI"`;
-  `conversasPendentes` conta `Conversation` com `status = "WAITING_HUMAN"`.
-  Como nenhum desses modelos tem dados reais ainda (IA/WhatsApp não
-  implementados), os três sempre retornam 0 — nunca são inventados.
+- **Sinery Assist**: a partir do Prompt 11 os contadores usam **dados reais de
+  conversas** (status honestos, não fingem IA): "Com Sinery Assist" conta
+  `Conversation` em `AI_HANDLING`, "Aguardando humano" conta `WAITING_HUMAN`,
+  e "Agendamentos pela IA" conta `Appointment` com `createdBySource = "AI"`
+  (sempre 0 enquanto não houver IA real criando consultas). O texto do card
+  deixa explícito que a Sinery Assist está em preparação e que `AI_HANDLING` é
+  apenas um status simulando o fluxo futuro — ver [`docs/conversations.md`](./conversations.md).
 
 ## 3. Cálculo de "hoje" e "semana" (timezone)
 
