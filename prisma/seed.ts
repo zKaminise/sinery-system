@@ -2,11 +2,34 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import bcrypt from "bcryptjs"
 
 import { PrismaClient } from "../lib/generated/prisma/client"
+import {
+  clinicToday,
+  getDayOfWeekForDate,
+  zonedWallClockToUtc,
+} from "../lib/appointments/date-utils"
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter })
 
 const CLINIC_SLUG = "sorria-odonto"
+const CLINIC_TIMEZONE = "America/Sao_Paulo"
+
+/** Adds `days` to a "YYYY-MM-DD" string (UTC-based, safe for date-only math). */
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d) + days * 86_400_000)
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`
+}
+
+/** Nearest date (searching forward from `fromDate`) whose weekday is allowed. */
+function nextMatchingDate(fromDate: string, allowedDays: number[]): string {
+  let cursor = fromDate
+  for (let i = 0; i < 14; i++) {
+    if (allowedDays.includes(getDayOfWeekForDate(cursor, CLINIC_TIMEZONE))) return cursor
+    cursor = addDays(cursor, 1)
+  }
+  return fromDate
+}
 
 // Development-only provisional password for the seeded owner user. The
 // account is created with temporaryPassword: true, so the very first login
@@ -282,50 +305,61 @@ async function main() {
       }),
     ])
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Appointments are placed on real working days for each professional so
+  // they always pass the same validation the app enforces (working hours, no
+  // conflicts) — regardless of which weekday the seed is run. Times are
+  // clinic-local wall clock converted to UTC instants via zonedWallClockToUtc,
+  // exactly like the create API does.
+  const today = clinicToday(CLINIC_TIMEZONE)
+  const felipeDay = nextMatchingDate(today, [1, 2, 3, 4, 5]) // Mon–Fri
+  const camilaDay = nextMatchingDate(today, [1, 3, 5]) // Mon/Wed/Fri
+  const renatoDay = nextMatchingDate(today, [2, 4]) // Tue/Thu
+  const renatoPastDay = addDays(renatoDay, -7) // same weekday, previous week
 
-  function at(hour: number, minute: number) {
-    const date = new Date(today)
-    date.setHours(hour, minute, 0, 0)
-    return date
-  }
-
-  function plusMinutes(date: Date, minutes: number) {
-    return new Date(date.getTime() + minutes * 60_000)
+  function slot(date: string, startTime: string, endTime: string) {
+    return {
+      startAt: zonedWallClockToUtc(date, startTime, CLINIC_TIMEZONE),
+      endAt: zonedWallClockToUtc(date, endTime, CLINIC_TIMEZONE),
+    }
   }
 
   const appointmentsData = [
+    // Dr. Felipe — two non-overlapping slots on the same day.
     {
       patientId: patientMariana.id,
       professionalId: drFelipe.id,
-      serviceId: servicoLimpeza.id,
-      startAt: at(8, 30),
-      durationMinutes: 60,
-      status: "CONFIRMED" as const,
+      serviceId: servicoAvaliacao.id,
+      ...slot(felipeDay, "09:00", "09:30"),
+      status: "SCHEDULED" as const,
     },
     {
       patientId: patientJoao.id,
-      professionalId: drCamila.id,
-      serviceId: servicoAvaliacao.id,
-      startAt: at(9, 0),
-      durationMinutes: 30,
-      status: "SCHEDULED" as const,
+      professionalId: drFelipe.id,
+      serviceId: servicoLimpeza.id,
+      ...slot(felipeDay, "10:00", "11:00"),
+      status: "CONFIRMED" as const,
     },
-    {
-      patientId: patientCarla.id,
-      professionalId: drCamila.id,
-      serviceId: servicoClareamento.id,
-      startAt: at(11, 0),
-      durationMinutes: 90,
-      status: "SCHEDULED" as const,
-    },
+    // Dra. Camila — two non-overlapping slots on the same day.
     {
       patientId: patientAna.id,
+      professionalId: drCamila.id,
+      serviceId: servicoManutencao.id,
+      ...slot(camilaDay, "14:00", "14:30"),
+      status: "RESCHEDULED" as const,
+    },
+    {
+      patientId: patientCarlos.id,
+      professionalId: drCamila.id,
+      serviceId: servicoClareamento.id,
+      ...slot(camilaDay, "15:00", "16:30"),
+      status: "SCHEDULED" as const,
+    },
+    // Dr. Renato — a completed appointment on a past working day.
+    {
+      patientId: patientCarla.id,
       professionalId: drRenato.id,
       serviceId: servicoCanal.id,
-      startAt: at(8, 0),
-      durationMinutes: 120,
+      ...slot(renatoPastDay, "08:00", "10:00"),
       status: "COMPLETED" as const,
     },
   ]
@@ -339,7 +373,7 @@ async function main() {
           professionalId: appointment.professionalId,
           serviceId: appointment.serviceId,
           startAt: appointment.startAt,
-          endAt: plusMinutes(appointment.startAt, appointment.durationMinutes),
+          endAt: appointment.endAt,
           status: appointment.status,
           createdByUserId: owner.id,
           createdBySource: "USER",

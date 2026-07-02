@@ -178,3 +178,19 @@ export function canEditService(role: UserRole): boolean {
 export function canChangeServiceStatus(role: UserRole): boolean {
   return role !== "PROFESSIONAL"
 }
+
+// ---------------------------------------------------------------------------
+// Appointments (agenda)
+// ---------------------------------------------------------------------------
+//
+// Per product decision (V1): OWNER, ADMIN and RECEPTIONIST can fully manage
+// the agenda (create, edit/reschedule, confirm, cancel, complete, mark
+// no-show). PROFESSIONAL is read-only — they can view the whole clinic's
+// agenda for operational awareness, but every mutation is an administrative
+// action handled by the front desk. "See only their own appointments" was
+// considered and deliberately deferred (see docs/appointments.md).
+
+/** All authenticated roles can view the agenda. */
+export function canManageAppointments(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}

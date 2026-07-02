@@ -58,8 +58,17 @@ export const AuditAction = {
   PROFESSIONAL_SERVICE_LINKED: "PROFESSIONAL_SERVICE_LINKED",
   PROFESSIONAL_SERVICE_UNLINKED: "PROFESSIONAL_SERVICE_UNLINKED",
 
-  // Domain events (used in seed samples; full CRUD comes in later prompts)
+  // Appointments (agenda)
   APPOINTMENT_CREATED: "APPOINTMENT_CREATED",
+  APPOINTMENT_UPDATED: "APPOINTMENT_UPDATED",
+  APPOINTMENT_RESCHEDULED: "APPOINTMENT_RESCHEDULED",
+  APPOINTMENT_CONFIRMED: "APPOINTMENT_CONFIRMED",
+  APPOINTMENT_CANCELLED: "APPOINTMENT_CANCELLED",
+  APPOINTMENT_COMPLETED: "APPOINTMENT_COMPLETED",
+  APPOINTMENT_NO_SHOW: "APPOINTMENT_NO_SHOW",
+  APPOINTMENT_ACCESS_DENIED: "APPOINTMENT_ACCESS_DENIED",
+
+  // Other domain events (used in seed samples)
   CLINIC_CREATED: "CLINIC_CREATED",
   USER_CREATED: "USER_CREATED",
 } as const
@@ -102,7 +111,14 @@ export const auditActionLabels: Record<string, string> = {
   SERVICE_ACCESS_DENIED: "Acesso negado",
   PROFESSIONAL_SERVICE_LINKED: "Serviço vinculado ao profissional",
   PROFESSIONAL_SERVICE_UNLINKED: "Serviço desvinculado do profissional",
-  APPOINTMENT_CREATED: "Agendamento criado",
+  APPOINTMENT_CREATED: "Consulta criada",
+  APPOINTMENT_UPDATED: "Consulta atualizada",
+  APPOINTMENT_RESCHEDULED: "Consulta remarcada",
+  APPOINTMENT_CONFIRMED: "Consulta confirmada",
+  APPOINTMENT_CANCELLED: "Consulta cancelada",
+  APPOINTMENT_COMPLETED: "Consulta concluída",
+  APPOINTMENT_NO_SHOW: "Falta registrada",
+  APPOINTMENT_ACCESS_DENIED: "Acesso negado",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
 }
@@ -123,7 +139,10 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "USER_ACCESS_DENIED" ||
     action === "PATIENT_ACCESS_DENIED" ||
     action === "PROFESSIONAL_ACCESS_DENIED" ||
-    action === "SERVICE_ACCESS_DENIED"
+    action === "SERVICE_ACCESS_DENIED" ||
+    action === "APPOINTMENT_ACCESS_DENIED" ||
+    action === "APPOINTMENT_CANCELLED" ||
+    action === "APPOINTMENT_NO_SHOW"
   ) {
     return "danger"
   }
@@ -137,14 +156,17 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "PROFESSIONAL_STATUS_CHANGED" ||
     action === "SERVICE_STATUS_CHANGED" ||
     action === "WORKING_HOUR_DELETED" ||
-    action === "PROFESSIONAL_SERVICE_UNLINKED"
+    action === "PROFESSIONAL_SERVICE_UNLINKED" ||
+    action === "APPOINTMENT_RESCHEDULED"
   ) {
     return "warning"
   }
   if (
     action === "AUTH_LOGIN_SUCCESS" ||
     action.endsWith("_CREATED") ||
-    action === "PROFESSIONAL_SERVICE_LINKED"
+    action === "PROFESSIONAL_SERVICE_LINKED" ||
+    action === "APPOINTMENT_CONFIRMED" ||
+    action === "APPOINTMENT_COMPLETED"
   ) {
     return "success"
   }
