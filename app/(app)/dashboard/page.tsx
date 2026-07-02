@@ -1,55 +1,98 @@
-import { CalendarCheck2, Hourglass, MessagesSquare, Bot } from "lucide-react"
+import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-import { StatCard } from "@/components/dashboard/stat-card"
-import { AgendaCard } from "@/components/dashboard/agenda-card"
-import { ConversationsCard } from "@/components/dashboard/conversations-card"
-import { AssistCard } from "@/components/dashboard/assist-card"
-import { ClinicCard } from "@/components/dashboard/clinic-card"
-import { dashboardStats } from "@/lib/mock-data"
-import { getCurrentClinicSafe } from "@/lib/tenant"
 import { getCurrentUser } from "@/lib/current-user"
+import { getCurrentClinicSafe } from "@/lib/tenant"
+import { getDashboardData } from "@/lib/dashboard/queries"
+import { getClinicTimeZone, utcToClinicParts } from "@/lib/appointments/date-utils"
+import {
+  canCreatePatient,
+  canCreateProfessional,
+  canCreateService,
+  canManageAppointments,
+} from "@/lib/permissions"
+import { logger } from "@/lib/logger"
+import { ErrorState } from "@/components/common/error-state"
+import { DashboardHeader } from "@/components/dashboard/dashboard-header"
+import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards"
+import { TodayAppointments } from "@/components/dashboard/today-appointments"
+import { UpcomingAppointments } from "@/components/dashboard/upcoming-appointments"
+import { WeeklySummary } from "@/components/dashboard/weekly-summary"
+import { OperationalAlerts } from "@/components/dashboard/operational-alerts"
+import { QuickActions } from "@/components/dashboard/quick-actions"
+import { AssistPreviewCard } from "@/components/dashboard/assist-preview-card"
+import type { DashboardData } from "@/lib/dashboard/queries"
 
-const statIcons = [CalendarCheck2, Hourglass, MessagesSquare, Bot] as const
-const statAccents = ["primary", "warning", "secondary", "success"] as const
+export const metadata: Metadata = {
+  title: "Dashboard — Sinery System",
+}
 
 export default async function DashboardPage() {
-  const [{ clinic, dbError }, user] = await Promise.all([
-    getCurrentClinicSafe(),
-    getCurrentUser(),
-  ])
+  const user = await getCurrentUser()
+  if (!user) {
+    redirect("/api/auth/clear-session")
+  }
+
+  const { clinic, dbError } = await getCurrentClinicSafe()
+
+  let data: DashboardData | null = null
+  let loadFailed = dbError
+
+  if (clinic && !dbError) {
+    try {
+      data = await getDashboardData(user.clinicId)
+    } catch (error) {
+      loadFailed = true
+      logger.error("Falha ao carregar o dashboard", {
+        context: "dashboard",
+        error,
+        metadata: { clinicId: user.clinicId },
+      })
+    }
+  }
+
+  const timeZone = getClinicTimeZone(data?.timeZone)
+  const hour = Number(utcToClinicParts(new Date(), timeZone).time.split(":")[0])
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">
-          {user ? `Bem-vindo(a) de volta, ${user.name.split(" ")[0]}!` : "Bem-vindo(a) de volta!"}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Aqui está um resumo do que está acontecendo na {clinic?.name ?? "sua clínica"} hoje.
-        </p>
-      </div>
+      <DashboardHeader userName={user.name} hour={hour} clinic={clinic} dbError={dbError} />
 
-      <ClinicCard clinic={clinic} dbError={dbError} />
+      {!clinic ? (
+        <ErrorState
+          title={dbError ? "Não foi possível conectar ao banco de dados" : "Nenhuma clínica encontrada"}
+          description={
+            dbError
+              ? "Verifique se o PostgreSQL está rodando e se DATABASE_URL está configurado em .env."
+              : "Este usuário não está associado a nenhuma clínica ativa."
+          }
+        />
+      ) : loadFailed || !data ? (
+        <ErrorState description="Não foi possível carregar os indicadores da clínica. Tente novamente em instantes." />
+      ) : (
+        <>
+          <DashboardSummaryCards summary={data.summary} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {dashboardStats.map((stat, index) => (
-          <StatCard
-            key={stat.label}
-            label={stat.label}
-            value={stat.value}
-            hint={stat.hint}
-            icon={statIcons[index]}
-            accent={statAccents[index]}
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <TodayAppointments appointments={data.todayAppointments} />
+            <UpcomingAppointments appointments={data.upcomingAppointments} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <OperationalAlerts alerts={data.alerts} />
+            <WeeklySummary week={data.week} />
+          </div>
+
+          <AssistPreviewCard assist={data.assist} />
+
+          <QuickActions
+            canCreatePatient={canCreatePatient(user.role)}
+            canCreateProfessional={canCreateProfessional(user.role)}
+            canCreateService={canCreateService(user.role)}
+            canManageAppointments={canManageAppointments(user.role)}
           />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <AgendaCard />
-        <ConversationsCard />
-      </div>
-
-      <AssistCard />
+        </>
+      )}
     </div>
   )
 }

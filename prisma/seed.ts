@@ -150,6 +150,19 @@ async function main() {
         status: "ACTIVE",
       },
     }),
+    // Recently hired, deliberately left without working hours or linked
+    // services — this is what powers the dashboard's "operational alerts"
+    // demo (a professional who can't actually be booked yet).
+    prisma.professional.create({
+      data: {
+        clinicId: clinic.id,
+        name: "Dra. Beatriz Costa",
+        email: "beatriz.costa@sorriaodonto.com.br",
+        phone: "11988884444",
+        specialty: "Periodontia",
+        status: "ACTIVE",
+      },
+    }),
   ])
 
   await prisma.workingHour.createMany({
@@ -305,6 +318,19 @@ async function main() {
       }),
     ])
 
+  // Active but with no professional linked yet — powers the dashboard's
+  // "serviço sem profissional vinculado" alert demo.
+  await prisma.service.create({
+    data: {
+      clinicId: clinic.id,
+      name: "Extração de siso",
+      description: "Remoção cirúrgica de terceiro molar",
+      durationMinutes: 90,
+      priceInCents: 45000,
+      status: "ACTIVE",
+    },
+  })
+
   // Appointments are placed on real working days for each professional so
   // they always pass the same validation the app enforces (working hours, no
   // conflicts) — regardless of which weekday the seed is run. Times are
@@ -361,6 +387,22 @@ async function main() {
       serviceId: servicoCanal.id,
       ...slot(renatoPastDay, "08:00", "10:00"),
       status: "COMPLETED" as const,
+    },
+    // A cancelled and a no-show slot this week, so the dashboard's weekly
+    // summary and "cancellations/no-shows" cards have real, non-zero data.
+    {
+      patientId: patientJoao.id,
+      professionalId: drFelipe.id,
+      serviceId: servicoAvaliacao.id,
+      ...slot(felipeDay, "11:30", "12:00"),
+      status: "CANCELLED" as const,
+    },
+    {
+      patientId: patientMariana.id,
+      professionalId: drCamila.id,
+      serviceId: servicoManutencao.id,
+      ...slot(camilaDay, "16:30", "17:00"),
+      status: "NO_SHOW" as const,
     },
   ]
 
@@ -555,7 +597,7 @@ async function main() {
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
-  console.log(`  Profissionais: 3, Pacientes: 5, Serviços: 5, Vínculos: 7, Agendamentos: ${appointments.length}`)
+  console.log(`  Profissionais: 4, Pacientes: 5, Serviços: 6, Vínculos: 7, Agendamentos: ${appointments.length}`)
 }
 
 main()
