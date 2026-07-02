@@ -20,3 +20,14 @@ export function isDynamicServerUsageError(error: unknown): boolean {
     (error as { digest?: unknown }).digest === "DYNAMIC_SERVER_USAGE"
   )
 }
+
+/**
+ * Formats a Service.priceInCents value as Brazilian currency (e.g. 15000 ->
+ * "R$ 150,00"). Returns a friendly placeholder for null (price not set).
+ */
+export function formatPriceFromCents(priceInCents: number | null): string {
+  if (priceInCents === null) return "Não informado"
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    priceInCents / 100
+  )
+}

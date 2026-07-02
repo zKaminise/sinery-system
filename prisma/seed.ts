@@ -96,48 +96,79 @@ async function main() {
     ],
   })
 
-  const [drBeatriz, drRafael] = await Promise.all([
+  const [drFelipe, drCamila, drRenato] = await Promise.all([
     prisma.professional.create({
       data: {
         clinicId: clinic.id,
-        name: "Dra. Beatriz Lima",
-        email: "beatriz.lima@sorriaodonto.com.br",
-        phone: "(11) 98888-1111",
-        specialty: "Clínica geral e estética",
+        name: "Dr. Felipe Andrade",
+        email: "felipe.andrade@sorriaodonto.com.br",
+        phone: "11988881111",
+        specialty: "Clínico geral",
         status: "ACTIVE",
       },
     }),
     prisma.professional.create({
       data: {
         clinicId: clinic.id,
-        name: "Dr. Rafael Tanaka",
-        email: "rafael.tanaka@sorriaodonto.com.br",
-        phone: "(11) 98888-2222",
+        name: "Dra. Camila Rocha",
+        email: "camila.rocha@sorriaodonto.com.br",
+        phone: "11988882222",
         specialty: "Ortodontia",
+        status: "ACTIVE",
+      },
+    }),
+    prisma.professional.create({
+      data: {
+        clinicId: clinic.id,
+        name: "Dr. Renato Lima",
+        email: "renato.lima@sorriaodonto.com.br",
+        phone: "11988883333",
+        specialty: "Endodontia",
         status: "ACTIVE",
       },
     }),
   ])
 
   await prisma.workingHour.createMany({
-    data: [1, 2, 3, 4, 5].flatMap((dayOfWeek) => [
-      {
+    data: [
+      // Dr. Felipe: Monday-Friday, two blocks per day (morning + afternoon).
+      ...[1, 2, 3, 4, 5].flatMap((dayOfWeek) => [
+        {
+          clinicId: clinic.id,
+          professionalId: drFelipe.id,
+          dayOfWeek,
+          startTime: "08:00",
+          endTime: "12:00",
+          active: true,
+        },
+        {
+          clinicId: clinic.id,
+          professionalId: drFelipe.id,
+          dayOfWeek,
+          startTime: "14:00",
+          endTime: "18:00",
+          active: true,
+        },
+      ]),
+      // Dra. Camila: Monday/Wednesday/Friday, single afternoon-heavy block.
+      ...[1, 3, 5].map((dayOfWeek) => ({
         clinicId: clinic.id,
-        professionalId: drBeatriz.id,
+        professionalId: drCamila.id,
         dayOfWeek,
-        startTime: "08:00",
+        startTime: "09:00",
         endTime: "17:00",
         active: true,
-      },
-      {
+      })),
+      // Dr. Renato: Tuesday/Thursday mornings only.
+      ...[2, 4].map((dayOfWeek) => ({
         clinicId: clinic.id,
-        professionalId: drRafael.id,
+        professionalId: drRenato.id,
         dayOfWeek,
-        startTime: "10:00",
-        endTime: "19:00",
+        startTime: "08:00",
+        endTime: "12:00",
         active: true,
-      },
-    ]),
+      })),
+    ],
   })
 
   const [patientMariana, patientJoao, patientCarla, patientAna, patientCarlos] =
@@ -199,14 +230,43 @@ async function main() {
       }),
     ])
 
-  const [servicoLimpeza, servicoAvaliacao, servicoClareamento, servicoExtracao] =
+  const [servicoAvaliacao, servicoLimpeza, servicoClareamento, servicoManutencao, servicoCanal] =
     await Promise.all([
       prisma.service.create({
         data: {
           clinicId: clinic.id,
-          name: "Limpeza dental",
+          name: "Avaliação inicial",
+          description: "Consulta inicial para avaliar o paciente e indicar o tratamento",
+          durationMinutes: 30,
+          priceInCents: null,
+          status: "ACTIVE",
+        },
+      }),
+      prisma.service.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Limpeza",
           description: "Profilaxia e remoção de tártaro",
-          durationMinutes: 40,
+          durationMinutes: 60,
+          priceInCents: 18000,
+          status: "ACTIVE",
+        },
+      }),
+      prisma.service.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Clareamento",
+          durationMinutes: 90,
+          priceInCents: 60000,
+          status: "ACTIVE",
+        },
+      }),
+      prisma.service.create({
+        data: {
+          clinicId: clinic.id,
+          name: "Manutenção ortodôntica",
+          description: "Ajuste periódico do aparelho ortodôntico",
+          durationMinutes: 30,
           priceInCents: 15000,
           status: "ACTIVE",
         },
@@ -214,28 +274,9 @@ async function main() {
       prisma.service.create({
         data: {
           clinicId: clinic.id,
-          name: "Avaliação ortodôntica",
-          description: "Consulta inicial para avaliação de aparelho",
-          durationMinutes: 30,
-          priceInCents: 0,
-          status: "ACTIVE",
-        },
-      }),
-      prisma.service.create({
-        data: {
-          clinicId: clinic.id,
-          name: "Clareamento dental",
-          durationMinutes: 60,
-          priceInCents: 45000,
-          status: "ACTIVE",
-        },
-      }),
-      prisma.service.create({
-        data: {
-          clinicId: clinic.id,
-          name: "Extração de siso",
-          durationMinutes: 50,
-          priceInCents: 35000,
+          name: "Tratamento de canal",
+          durationMinutes: 120,
+          priceInCents: 90000,
           status: "ACTIVE",
         },
       }),
@@ -257,34 +298,34 @@ async function main() {
   const appointmentsData = [
     {
       patientId: patientMariana.id,
-      professionalId: drBeatriz.id,
+      professionalId: drFelipe.id,
       serviceId: servicoLimpeza.id,
       startAt: at(8, 30),
-      durationMinutes: 40,
+      durationMinutes: 60,
       status: "CONFIRMED" as const,
     },
     {
       patientId: patientJoao.id,
-      professionalId: drRafael.id,
+      professionalId: drCamila.id,
       serviceId: servicoAvaliacao.id,
-      startAt: at(10, 0),
+      startAt: at(9, 0),
       durationMinutes: 30,
       status: "SCHEDULED" as const,
     },
     {
       patientId: patientCarla.id,
-      professionalId: drBeatriz.id,
+      professionalId: drCamila.id,
       serviceId: servicoClareamento.id,
       startAt: at(11, 0),
-      durationMinutes: 60,
+      durationMinutes: 90,
       status: "SCHEDULED" as const,
     },
     {
-      patientId: patientMariana.id,
-      professionalId: drRafael.id,
-      serviceId: servicoExtracao.id,
-      startAt: at(14, 0),
-      durationMinutes: 50,
+      patientId: patientAna.id,
+      professionalId: drRenato.id,
+      serviceId: servicoCanal.id,
+      startAt: at(8, 0),
+      durationMinutes: 120,
       status: "COMPLETED" as const,
     },
   ]
@@ -306,6 +347,38 @@ async function main() {
       })
     )
   )
+
+  // Professional <-> Service links: which professional performs which
+  // service, used by the future Agenda module. Matches the pairing described
+  // in the working hours above (Felipe = general/cleaning, Camila =
+  // orthodontics/whitening, Renato = endodontics), plus everyone can do the
+  // initial evaluation.
+  await Promise.all([
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drFelipe.id, serviceId: servicoAvaliacao.id },
+    }),
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drCamila.id, serviceId: servicoAvaliacao.id },
+    }),
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drCamila.id, serviceId: servicoManutencao.id },
+    }),
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drRenato.id, serviceId: servicoAvaliacao.id },
+    }),
+  ])
+
+  const [linkFelipeLimpeza, linkCamilaClareamento, linkRenatoCanal] = await Promise.all([
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drFelipe.id, serviceId: servicoLimpeza.id },
+    }),
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drCamila.id, serviceId: servicoClareamento.id },
+    }),
+    prisma.professionalService.create({
+      data: { clinicId: clinic.id, professionalId: drRenato.id, serviceId: servicoCanal.id },
+    }),
+  ])
 
   // Sample audit logs across several event types so the /auditoria screen has
   // realistic, varied content out of the box. This stays idempotent because
@@ -365,6 +438,62 @@ async function main() {
       {
         clinicId: clinic.id,
         userId: owner.id,
+        action: "PROFESSIONAL_CREATED",
+        entity: "Professional",
+        entityId: drFelipe.id,
+        description: "Profissional Dr. Felipe Andrade foi cadastrado.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "PROFESSIONAL_CREATED",
+        entity: "Professional",
+        entityId: drCamila.id,
+        description: "Profissional Dra. Camila Rocha foi cadastrado.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "SERVICE_CREATED",
+        entity: "Service",
+        entityId: servicoLimpeza.id,
+        description: "Serviço Limpeza foi cadastrado.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "SERVICE_CREATED",
+        entity: "Service",
+        entityId: servicoCanal.id,
+        description: "Serviço Tratamento de canal foi cadastrado.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "PROFESSIONAL_SERVICE_LINKED",
+        entity: "ProfessionalService",
+        entityId: linkFelipeLimpeza.id,
+        description: "Serviço Limpeza foi vinculado ao profissional Dr. Felipe Andrade.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "PROFESSIONAL_SERVICE_LINKED",
+        entity: "ProfessionalService",
+        entityId: linkCamilaClareamento.id,
+        description: "Serviço Clareamento foi vinculado ao profissional Dra. Camila Rocha.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
+        action: "PROFESSIONAL_SERVICE_LINKED",
+        entity: "ProfessionalService",
+        entityId: linkRenatoCanal.id,
+        description: "Serviço Tratamento de canal foi vinculado ao profissional Dr. Renato Lima.",
+      },
+      {
+        clinicId: clinic.id,
+        userId: owner.id,
         action: "AUTH_LOGIN_SUCCESS",
         entity: "User",
         entityId: owner.id,
@@ -392,7 +521,7 @@ async function main() {
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
-  console.log(`  Profissionais: 2, Pacientes: 5, Serviços: 4, Agendamentos: ${appointments.length}`)
+  console.log(`  Profissionais: 3, Pacientes: 5, Serviços: 5, Vínculos: 7, Agendamentos: ${appointments.length}`)
 }
 
 main()

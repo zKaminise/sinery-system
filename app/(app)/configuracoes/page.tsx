@@ -13,12 +13,15 @@ export const metadata: Metadata = {
 export default async function ConfiguracoesPage() {
   const user = await getCurrentUser()
   if (!user) {
-    redirect("/login")
+    // Not a direct redirect("/login") — see app/(app)/layout.tsx for why a
+    // stale-but-signature-valid cookie must be cleared first to avoid a
+    // /login <-> /dashboard redirect loop.
+    redirect("/api/auth/clear-session")
   }
 
   const clinic = await getCurrentUserClinic()
   if (!clinic) {
-    redirect("/login")
+    redirect("/api/auth/clear-session")
   }
 
   const canManage = canManageClinicSettings(user)

@@ -25,7 +25,8 @@ export default async function PatientDetailPage({
 }) {
   const user = await getCurrentUser()
   if (!user) {
-    redirect("/login")
+    // Not a direct redirect("/login") — see app/(app)/layout.tsx.
+    redirect("/api/auth/clear-session")
   }
 
   const { patientId } = await params

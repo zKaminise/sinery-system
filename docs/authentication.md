@@ -105,6 +105,28 @@ ganhar um passo de seleção de tenant (por subdomínio ou campo explícito).
 4. Tentar acessar `/dashboard` diretamente depois disso deve redirecionar de
    volta para `/login` (Proxy barra a rota por falta de cookie válido).
 
+## 5.1 Sessão "presa" após rodar `db:seed` novamente
+
+Se você reiniciar o banco (`npm run db:push` + `npm run db:seed`) enquanto
+ainda está logado no navegador de uma sessão anterior, o cookie de sessão
+antigo continua com **assinatura JWT válida** (o `AUTH_SECRET` não muda),
+mas aponta para um `userId` que não existe mais após o reseed.
+
+Sem tratamento, isso causaria um loop de redirecionamento entre `/login` e
+`/dashboard`: o Proxy (checagem otimista, só decodifica o cookie) acha que
+você está logado e deixa passar; o layout autenticado (checagem no banco)
+não encontra o usuário e manda para `/login`; o Proxy vê o mesmo cookie
+"válido" de novo e manda de volta para `/dashboard` — infinitamente.
+
+Para evitar isso, toda checagem autoritativa que falha (`getCurrentUser()`
+retorna `null`) redireciona para `/api/auth/clear-session` em vez de
+`/login` diretamente. Essa rota (um Route Handler, que pode mexer em
+cookies — Server Components não podem) apaga o cookie e só então redireciona
+para `/login`. Na prática: se isso acontecer com você, **basta atualizar a
+página uma vez** — o sistema detecta a sessão inválida, limpa o cookie
+sozinho e mostra a tela de login normalmente. Também funciona simplesmente
+limpando os cookies do site manualmente, se preferir.
+
 ## 6. Arquitetura (por que autenticação própria, não NextAuth/Auth.js)
 
 Para este MVP, o fluxo de senha provisória + multi-tenant é simples o

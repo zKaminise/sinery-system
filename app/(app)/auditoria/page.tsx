@@ -32,7 +32,8 @@ export default async function AuditoriaPage({
 }) {
   const user = await getCurrentUser()
   if (!user) {
-    redirect("/login")
+    // Not a direct redirect("/login") — see app/(app)/layout.tsx.
+    redirect("/api/auth/clear-session")
   }
 
   // Role gate: only OWNER/ADMIN may view the audit trail. Others get a denial

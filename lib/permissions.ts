@@ -131,3 +131,50 @@ export function canChangePatientStatus(role: UserRole): boolean {
 export function canArchivePatient(role: UserRole): boolean {
   return role !== "PROFESSIONAL"
 }
+
+// ---------------------------------------------------------------------------
+// Professionals, working hours & professional↔service links
+// ---------------------------------------------------------------------------
+//
+// Per product decision: OWNER, ADMIN and RECEPTIONIST have identical rights
+// over the clinic's Professional/WorkingHour/ProfessionalService records —
+// same rationale as Patients (RECEPTIONIST runs day-to-day registration work
+// in a small clinic). PROFESSIONAL is view-only across this whole area,
+// including their own record: they can see their schedule and linked
+// services, but changing them is an administrative action in this V1.
+
+export function canCreateProfessional(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+export function canEditProfessional(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+export function canChangeProfessionalStatus(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+export function canManageWorkingHours(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+export function canManageProfessionalServices(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+
+export function canCreateService(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+export function canEditService(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+export function canChangeServiceStatus(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}

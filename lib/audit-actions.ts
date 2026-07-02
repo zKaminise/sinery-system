@@ -36,6 +36,28 @@ export const AuditAction = {
   PATIENT_ARCHIVED: "PATIENT_ARCHIVED",
   PATIENT_ACCESS_DENIED: "PATIENT_ACCESS_DENIED",
 
+  // Professionals
+  PROFESSIONAL_CREATED: "PROFESSIONAL_CREATED",
+  PROFESSIONAL_UPDATED: "PROFESSIONAL_UPDATED",
+  PROFESSIONAL_STATUS_CHANGED: "PROFESSIONAL_STATUS_CHANGED",
+  PROFESSIONAL_ACCESS_DENIED: "PROFESSIONAL_ACCESS_DENIED",
+
+  // Working hours
+  WORKING_HOUR_CREATED: "WORKING_HOUR_CREATED",
+  WORKING_HOUR_UPDATED: "WORKING_HOUR_UPDATED",
+  WORKING_HOUR_DELETED: "WORKING_HOUR_DELETED",
+  WORKING_HOUR_STATUS_CHANGED: "WORKING_HOUR_STATUS_CHANGED",
+
+  // Services
+  SERVICE_CREATED: "SERVICE_CREATED",
+  SERVICE_UPDATED: "SERVICE_UPDATED",
+  SERVICE_STATUS_CHANGED: "SERVICE_STATUS_CHANGED",
+  SERVICE_ACCESS_DENIED: "SERVICE_ACCESS_DENIED",
+
+  // Professional <-> Service links
+  PROFESSIONAL_SERVICE_LINKED: "PROFESSIONAL_SERVICE_LINKED",
+  PROFESSIONAL_SERVICE_UNLINKED: "PROFESSIONAL_SERVICE_UNLINKED",
+
   // Domain events (used in seed samples; full CRUD comes in later prompts)
   APPOINTMENT_CREATED: "APPOINTMENT_CREATED",
   CLINIC_CREATED: "CLINIC_CREATED",
@@ -66,6 +88,20 @@ export const auditActionLabels: Record<string, string> = {
   PATIENT_STATUS_CHANGED: "Status do paciente alterado",
   PATIENT_ARCHIVED: "Paciente arquivado",
   PATIENT_ACCESS_DENIED: "Acesso negado",
+  PROFESSIONAL_CREATED: "Profissional criado",
+  PROFESSIONAL_UPDATED: "Profissional atualizado",
+  PROFESSIONAL_STATUS_CHANGED: "Status do profissional alterado",
+  PROFESSIONAL_ACCESS_DENIED: "Acesso negado",
+  WORKING_HOUR_CREATED: "Horário criado",
+  WORKING_HOUR_UPDATED: "Horário atualizado",
+  WORKING_HOUR_DELETED: "Horário removido",
+  WORKING_HOUR_STATUS_CHANGED: "Status do horário alterado",
+  SERVICE_CREATED: "Serviço criado",
+  SERVICE_UPDATED: "Serviço atualizado",
+  SERVICE_STATUS_CHANGED: "Status do serviço alterado",
+  SERVICE_ACCESS_DENIED: "Acesso negado",
+  PROFESSIONAL_SERVICE_LINKED: "Serviço vinculado ao profissional",
+  PROFESSIONAL_SERVICE_UNLINKED: "Serviço desvinculado do profissional",
   APPOINTMENT_CREATED: "Agendamento criado",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
@@ -85,7 +121,9 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "AUTH_LOGIN_FAILED" ||
     action === "ACCESS_DENIED" ||
     action === "USER_ACCESS_DENIED" ||
-    action === "PATIENT_ACCESS_DENIED"
+    action === "PATIENT_ACCESS_DENIED" ||
+    action === "PROFESSIONAL_ACCESS_DENIED" ||
+    action === "SERVICE_ACCESS_DENIED"
   ) {
     return "danger"
   }
@@ -95,10 +133,20 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "USER_STATUS_CHANGED" ||
     action === "USER_TEMP_PASSWORD_RESET" ||
     action === "PATIENT_STATUS_CHANGED" ||
-    action === "PATIENT_ARCHIVED"
+    action === "PATIENT_ARCHIVED" ||
+    action === "PROFESSIONAL_STATUS_CHANGED" ||
+    action === "SERVICE_STATUS_CHANGED" ||
+    action === "WORKING_HOUR_DELETED" ||
+    action === "PROFESSIONAL_SERVICE_UNLINKED"
   ) {
     return "warning"
   }
-  if (action === "AUTH_LOGIN_SUCCESS" || action.endsWith("_CREATED")) return "success"
+  if (
+    action === "AUTH_LOGIN_SUCCESS" ||
+    action.endsWith("_CREATED") ||
+    action === "PROFESSIONAL_SERVICE_LINKED"
+  ) {
+    return "success"
+  }
   return "info"
 }

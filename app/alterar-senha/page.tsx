@@ -14,7 +14,10 @@ export default async function AlterarSenhaPage() {
   const user = await getCurrentUser()
 
   if (!user) {
-    redirect("/login")
+    // See app/(app)/layout.tsx for why this isn't a direct redirect("/login") —
+    // a signature-valid-but-stale cookie needs to be cleared first, or Proxy's
+    // optimistic check would bounce the request straight back here.
+    redirect("/api/auth/clear-session")
   }
 
   return (

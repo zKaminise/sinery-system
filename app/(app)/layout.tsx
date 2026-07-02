@@ -15,7 +15,13 @@ export default async function AuthenticatedLayout({
   const user = await getCurrentUser()
 
   if (!user) {
-    redirect("/login")
+    // Not just "/login": the cookie may still be signature-valid (e.g. after
+    // a local db:seed recreated users with new ids) even though it no
+    // longer maps to a real account. Redirecting straight to /login would
+    // leave that stale cookie in place, and Proxy's optimistic check would
+    // immediately bounce back to /dashboard — an infinite redirect loop.
+    // This route clears the cookie first, then redirects to /login for real.
+    redirect("/api/auth/clear-session")
   }
 
   if (user.temporaryPassword) {
