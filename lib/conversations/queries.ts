@@ -6,11 +6,14 @@ import {
   clinicToday,
   getWeekRangeUtc,
 } from "@/lib/appointments/date-utils"
+import { getWhatsAppSendFlags } from "@/lib/whatsapp/whatsapp-config"
+import { canSendFreeFormWhatsApp } from "@/lib/whatsapp/whatsapp-service-window"
 import type {
   ConversationStatus,
   ConversationChannel,
   MessageDirection,
   MessageSenderType,
+  MessageDeliveryStatus,
   Prisma,
 } from "@/lib/generated/prisma/client"
 
@@ -36,7 +39,15 @@ export interface ConversationMessageItem {
   senderType: MessageSenderType
   content: string
   senderName: string | null
+  deliveryStatus: MessageDeliveryStatus | null
   createdAt: string
+}
+
+export interface WhatsAppSendState {
+  sendEnabled: boolean
+  mockMode: boolean
+  require24hWindow: boolean
+  withinWindow: boolean
 }
 
 export interface ConversationDetail {
@@ -54,6 +65,8 @@ export interface ConversationDetail {
   createdAt: string
   updatedAt: string
   messages: ConversationMessageItem[]
+  /** WhatsApp send state (only meaningful for channel WHATSAPP). */
+  whatsApp: WhatsAppSendState | null
 }
 
 export interface ConversationSummary {
@@ -220,6 +233,7 @@ export async function getConversationDetail(
           senderType: true,
           content: true,
           metadata: true,
+          deliveryStatus: true,
           createdAt: true,
         },
       },
@@ -227,6 +241,19 @@ export async function getConversationDetail(
   })
 
   if (!conv) return null
+
+  // WhatsApp send state (only for WHATSAPP conversations).
+  let whatsApp: WhatsAppSendState | null = null
+  if (conv.channel === "WHATSAPP") {
+    const flags = getWhatsAppSendFlags()
+    const withinWindow = await canSendFreeFormWhatsApp(clinicId, conv.id, flags.require24hWindow)
+    whatsApp = {
+      sendEnabled: flags.sendMessagesEnabled,
+      mockMode: flags.sendMockMode,
+      require24hWindow: flags.require24hWindow,
+      withinWindow,
+    }
+  }
 
   return {
     id: conv.id,
@@ -250,9 +277,11 @@ export async function getConversationDetail(
         senderType: m.senderType,
         content: m.content,
         senderName: meta?.userName ?? null,
+        deliveryStatus: m.deliveryStatus ?? null,
         createdAt: m.createdAt.toISOString(),
       }
     }),
+    whatsApp,
   }
 }
 

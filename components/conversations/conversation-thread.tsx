@@ -73,19 +73,46 @@ export function ConversationThread({
         ))}
       </div>
 
-      {/* Composer: WHATSAPP conversations cannot reply yet (real send is a
-          later prompt). INTERNAL_SIMULATOR keeps the normal composer. */}
-      {canManage && conversation.channel === "WHATSAPP" ? (
-        <div className="flex items-start gap-2 border-t border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-          <Info className="mt-0.5 size-3.5 shrink-0 text-warning" />
-          <span>
-            Envio pelo WhatsApp será implementado no próximo prompt. Por enquanto, você pode apenas visualizar as
-            mensagens recebidas — respostas ainda não são enviadas ao paciente.
-          </span>
-        </div>
-      ) : (
-        canManage && <MessageComposer conversationId={conversation.id} status={conversation.status} />
-      )}
+      {/* Composer. WHATSAPP has real send with gated states; INTERNAL_SIMULATOR
+          keeps the normal composer. Read-only roles never see a composer. */}
+      {canManage &&
+        (conversation.channel === "WHATSAPP" ? (
+          <WhatsAppComposerSlot conversation={conversation} />
+        ) : (
+          <MessageComposer conversationId={conversation.id} status={conversation.status} />
+        ))}
     </div>
+  )
+}
+
+function ComposerNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 border-t border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+      <Info className="mt-0.5 size-3.5 shrink-0 text-warning" />
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function WhatsAppComposerSlot({ conversation }: { conversation: ConversationDetail }) {
+  if (conversation.status === "CLOSED") {
+    return <ComposerNotice>Reabra a conversa para enviar uma nova mensagem.</ComposerNotice>
+  }
+  const wa = conversation.whatsApp
+  if (!wa || !wa.sendEnabled) {
+    return <ComposerNotice>Envio real pelo WhatsApp está desativado nas configurações.</ComposerNotice>
+  }
+  if (!wa.withinWindow) {
+    return <ComposerNotice>Janela de 24 horas expirada. Templates serão implementados em etapa futura.</ComposerNotice>
+  }
+  return (
+    <>
+      {wa.mockMode && (
+        <div className="border-t border-border bg-warning/5 px-4 py-1.5 text-center text-[11px] text-warning">
+          Modo mock ativo — mensagens não são enviadas à Meta.
+        </div>
+      )}
+      <MessageComposer conversationId={conversation.id} status={conversation.status} whatsapp />
+    </>
   )
 }

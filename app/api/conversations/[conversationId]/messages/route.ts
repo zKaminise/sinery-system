@@ -4,7 +4,9 @@ import { createAuditLog } from "@/lib/audit"
 import { AuditAction } from "@/lib/audit-actions"
 import { successResponse, errorResponse } from "@/lib/api-response"
 import { sendMessageSchema } from "@/lib/validators/conversation"
-import { canManageConversations } from "@/lib/permissions"
+import { canManageConversations, canSendWhatsAppMessage } from "@/lib/permissions"
+import { getWhatsAppSendFlags } from "@/lib/whatsapp/whatsapp-config"
+import { sendWhatsAppTextMessage } from "@/lib/whatsapp/whatsapp-send-service"
 
 export async function POST(
   request: Request,
@@ -24,16 +26,6 @@ export async function POST(
   })
   if (!conversation) {
     return errorResponse("Conversa não encontrada.", 404)
-  }
-
-  // Prompt 17: real WhatsApp sending is not implemented yet. Block replies on
-  // WHATSAPP conversations so nobody thinks a message was delivered. The
-  // INTERNAL_SIMULATOR channel keeps working normally.
-  if (conversation.channel === "WHATSAPP") {
-    return errorResponse(
-      "O envio real pelo WhatsApp será ativado no próximo passo. Por enquanto, você pode apenas visualizar as mensagens recebidas.",
-      409
-    )
   }
 
   if (!canManageConversations(auth.user.role)) {
@@ -62,6 +54,27 @@ export async function POST(
   const parsed = sendMessageSchema.safeParse(body)
   if (!parsed.success) {
     return errorResponse(parsed.error.issues[0]?.message ?? "Dados inválidos.", 422)
+  }
+
+  // WHATSAPP conversations: real (or mocked) send via the Graph API. The
+  // send-service enforces integration/window/token; the destination phone comes
+  // from the Conversation, never the frontend. INTERNAL_SIMULATOR is unchanged.
+  if (conversation.channel === "WHATSAPP") {
+    if (!canSendWhatsAppMessage(auth.user.role)) {
+      return errorResponse("Você não tem permissão para enviar mensagens pelo WhatsApp.", 403)
+    }
+    if (!getWhatsAppSendFlags().sendMessagesEnabled) {
+      return errorResponse("Envio real pelo WhatsApp está desativado nas configurações.", 409)
+    }
+    const result = await sendWhatsAppTextMessage({
+      clinicId: auth.user.clinicId,
+      conversationId: conversation.id,
+      text: parsed.data.content,
+      sentByUserId: auth.user.id,
+      sentByUserName: auth.user.name,
+    })
+    if (!result.ok) return errorResponse(result.message, result.httpStatus)
+    return successResponse({ id: conversation.id, messageId: result.messageId, deliveryStatus: result.deliveryStatus, mock: result.mock }, 201)
   }
 
   // Sending a human message auto-assumes the conversation: when it was waiting

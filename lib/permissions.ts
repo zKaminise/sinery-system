@@ -267,3 +267,11 @@ export function canManageWhatsAppIntegration(role: UserRole): boolean {
 export function canViewWhatsAppIntegration(role: UserRole): boolean {
   return role !== "PROFESSIONAL"
 }
+
+/**
+ * OWNER/ADMIN/RECEPTIONIST may send real WhatsApp replies from the inbox.
+ * PROFESSIONAL is read-only (enforced server-side, not just in the UI).
+ */
+export function canSendWhatsAppMessage(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles } from "lucide-react"
+import { Sparkles, Clock, Check, CheckCheck, CircleX, FlaskConical } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { formatInboxDateTime } from "@/components/conversations/format"
@@ -10,6 +10,26 @@ import type { ConversationMessageItem } from "@/lib/conversations/queries"
 interface MessageBubbleProps {
   message: ConversationMessageItem
   timeZone: string
+}
+
+const DELIVERY: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; className: string }> = {
+  PENDING: { label: "Enviando...", icon: Clock, className: "text-muted-foreground" },
+  SENT: { label: "Enviada", icon: Check, className: "text-muted-foreground" },
+  DELIVERED: { label: "Entregue", icon: CheckCheck, className: "text-muted-foreground" },
+  READ: { label: "Lida", icon: CheckCheck, className: "text-secondary" },
+  FAILED: { label: "Falhou", icon: CircleX, className: "text-destructive" },
+  MOCK_SENT: { label: "Mock — não enviado à Meta", icon: FlaskConical, className: "text-warning" },
+}
+
+function DeliveryStatus({ status }: { status: string }) {
+  const cfg = DELIVERY[status]
+  if (!cfg) return null
+  const Icon = cfg.icon
+  return (
+    <span className={cn("flex items-center gap-1 text-[11px]", cfg.className)}>
+      <Icon className="size-3" /> {cfg.label}
+    </span>
+  )
 }
 
 export function MessageBubble({ message, timeZone }: MessageBubbleProps) {
@@ -53,9 +73,12 @@ export function MessageBubble({ message, timeZone }: MessageBubbleProps) {
       >
         {message.content}
       </div>
-      <span className="px-1 text-[11px] text-muted-foreground">
-        {formatInboxDateTime(message.createdAt, timeZone)}
-      </span>
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[11px] text-muted-foreground">
+          {formatInboxDateTime(message.createdAt, timeZone)}
+        </span>
+        {!isInbound && message.deliveryStatus && <DeliveryStatus status={message.deliveryStatus} />}
+      </div>
     </div>
   )
 }

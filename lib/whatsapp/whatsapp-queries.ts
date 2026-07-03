@@ -8,6 +8,7 @@ import {
   getWhatsAppEnvIds,
   validateWhatsAppEnv,
   getWhatsAppWebhookFlags,
+  getWhatsAppSendFlags,
 } from "@/lib/whatsapp/whatsapp-config"
 import { statusMessage, type WhatsAppSafeConfig, type WhatsAppIntegrationStatus } from "@/lib/whatsapp/whatsapp-validate"
 import { maskWhatsAppId } from "@/lib/whatsapp/whatsapp-mask"
@@ -45,6 +46,15 @@ export interface WhatsAppIntegrationView {
     lastMessageReceivedAt: string | null
     recentEventsCount: number
   }
+  /** Send status (Prompt 18). */
+  send: {
+    enabled: boolean
+    mockMode: boolean
+    require24hWindow: boolean
+    lastMessageSentAt: string | null
+    sentToday: number
+    failedToday: number
+  }
 }
 
 /** Ensures a row exists for the clinic (idempotent) and returns the raw record. */
@@ -66,9 +76,12 @@ function toView(
   env: WhatsAppSafeConfig,
   issues: string[],
   warnings: string[],
-  recentEventsCount = 0
+  recentEventsCount = 0,
+  sentToday = 0,
+  failedToday = 0
 ): WhatsAppIntegrationView {
   const webhookFlags = getWhatsAppWebhookFlags()
+  const sendFlags = getWhatsAppSendFlags()
   return {
     webhook: {
       enabled: webhookFlags.webhookEnabled,
@@ -78,6 +91,14 @@ function toView(
       lastWebhookVerifiedAt: row.lastWebhookVerifiedAt ? row.lastWebhookVerifiedAt.toISOString() : null,
       lastMessageReceivedAt: row.lastMessageReceivedAt ? row.lastMessageReceivedAt.toISOString() : null,
       recentEventsCount,
+    },
+    send: {
+      enabled: sendFlags.sendMessagesEnabled,
+      mockMode: sendFlags.sendMockMode,
+      require24hWindow: sendFlags.require24hWindow,
+      lastMessageSentAt: row.lastMessageSentAt ? row.lastMessageSentAt.toISOString() : null,
+      sentToday,
+      failedToday,
     },
     id: row.id,
     enabled: row.enabled,
@@ -107,11 +128,21 @@ export async function getWhatsAppIntegration(clinicId: string): Promise<WhatsApp
   const row = await ensureRow(clinicId)
   const env = getWhatsAppRuntimeConfig()
   const validation = validateWhatsAppEnv()
-  const recentEventsCount = await prisma.whatsAppWebhookEvent.count({ where: { clinicId } })
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  const [recentEventsCount, sentToday, failedToday] = await Promise.all([
+    prisma.whatsAppWebhookEvent.count({ where: { clinicId } }),
+    prisma.message.count({
+      where: { clinicId, externalChannel: "WHATSAPP", direction: "OUTBOUND", deliveryStatus: { in: ["SENT", "DELIVERED", "READ", "MOCK_SENT"] }, createdAt: { gte: startOfDay } },
+    }),
+    prisma.message.count({
+      where: { clinicId, externalChannel: "WHATSAPP", direction: "OUTBOUND", deliveryStatus: "FAILED", createdAt: { gte: startOfDay } },
+    }),
+  ])
   // Live status combines env config with the clinic's `enabled` toggle: if the
   // clinic turned it off, it's DISABLED regardless of env.
   const liveStatus = !row.enabled && validation.status !== "NOT_CONFIGURED" ? "DISABLED" : validation.status
-  return toView(row, liveStatus, env, validation.issues, validation.warnings, recentEventsCount)
+  return toView(row, liveStatus, env, validation.issues, validation.warnings, recentEventsCount, sentToday, failedToday)
 }
 
 /** Updates the editable fields (enabled/displayPhoneNumber/verifiedName). */

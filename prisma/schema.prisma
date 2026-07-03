@@ -98,6 +98,16 @@ enum MessageSenderType {
   SYSTEM
 }
 
+enum MessageDeliveryStatus {
+  INTERNAL_ONLY
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  MOCK_SENT
+}
+
 // ---------------------------------------------------------------------------
 // Tenant root
 // ---------------------------------------------------------------------------
@@ -365,6 +375,14 @@ model Message {
   externalMessageId String?
   externalChannel   String?
   externalTimestamp DateTime?
+  // Outbound delivery lifecycle (Prompt 18). Null for internal messages.
+  deliveryStatus       MessageDeliveryStatus?
+  deliveryErrorCode    String?
+  deliveryErrorMessage String?
+  sentAt               DateTime?
+  deliveredAt          DateTime?
+  readAt               DateTime?
+  failedAt             DateTime?
   createdAt      DateTime          @default(now())
 
   clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -374,6 +392,7 @@ model Message {
   @@index([conversationId])
   @@index([externalMessageId])
   @@index([externalChannel])
+  @@index([deliveryStatus])
 }
 
 // ---------------------------------------------------------------------------

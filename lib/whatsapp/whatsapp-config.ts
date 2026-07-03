@@ -13,6 +13,11 @@ function present(value: string | undefined): boolean {
   return (value ?? "").trim().length > 0
 }
 
+function num(value: string | undefined, fallback: number): number {
+  const n = Number.parseInt(value ?? "", 10)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 /**
  * SERVER-ONLY. Reads the raw WhatsApp env (including secrets). Never export the
  * result to a client component — use `getWhatsAppRuntimeConfig` for anything
@@ -36,6 +41,24 @@ function readEnv() {
     verifySignature: (process.env.WHATSAPP_VERIFY_SIGNATURE ?? "true").trim().toLowerCase() !== "false",
     autoCreatePatient: bool(process.env.WHATSAPP_AUTO_CREATE_PATIENT),
     autoProcessAssist: bool(process.env.WHATSAPP_AUTO_PROCESS_ASSIST),
+    // Sending (Prompt 18).
+    sendMockMode: bool(process.env.WHATSAPP_SEND_MOCK_MODE),
+    sendTimeoutMs: num(process.env.WHATSAPP_SEND_TIMEOUT_MS, 15000),
+    // 24h service window defaults ON (safe). "false" only in dev.
+    require24hWindow: (process.env.WHATSAPP_REQUIRE_24H_WINDOW ?? "true").trim().toLowerCase() !== "false",
+  }
+}
+
+/** SERVER-ONLY. Sending flags (safe booleans/ints, no secrets). */
+export function getWhatsAppSendFlags() {
+  const env = readEnv()
+  return {
+    sendMessagesEnabled: env.sendMessagesEnabled,
+    sendMockMode: env.sendMockMode,
+    require24hWindow: env.require24hWindow,
+    sendTimeoutMs: env.sendTimeoutMs,
+    hasAccessToken: present(env.accessToken),
+    graphApiVersion: env.graphApiVersion,
   }
 }
 

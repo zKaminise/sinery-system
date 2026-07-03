@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getWhatsAppRuntimeConfig, validateWhatsAppEnv, getWhatsAppWebhookFlags } from "@/lib/whatsapp/whatsapp-config"
+import { getWhatsAppRuntimeConfig, validateWhatsAppEnv, getWhatsAppWebhookFlags, getWhatsAppSendFlags } from "@/lib/whatsapp/whatsapp-config"
 
 export interface WhatsAppHealth {
   enabled: boolean
@@ -11,6 +11,8 @@ export interface WhatsAppHealth {
   hasAppSecret: boolean
   hasWebhookVerifyToken: boolean
   sendMessagesEnabled: boolean
+  sendMockMode: boolean
+  require24hWindow: boolean
   webhookEnabled: boolean
   verifySignature: boolean
   webhookPath: string
@@ -25,6 +27,7 @@ export function getWhatsAppHealth(): WhatsAppHealth {
   const cfg = getWhatsAppRuntimeConfig()
   const validation = validateWhatsAppEnv()
   const webhook = getWhatsAppWebhookFlags()
+  const send = getWhatsAppSendFlags()
   return {
     enabled: cfg.enabled,
     effectiveStatus: validation.status,
@@ -34,6 +37,8 @@ export function getWhatsAppHealth(): WhatsAppHealth {
     hasAppSecret: cfg.hasAppSecret,
     hasWebhookVerifyToken: cfg.hasWebhookVerifyToken,
     sendMessagesEnabled: cfg.sendMessagesEnabled,
+    sendMockMode: send.sendMockMode,
+    require24hWindow: send.require24hWindow,
     webhookEnabled: cfg.webhookEnabled,
     verifySignature: webhook.verifySignature,
     webhookPath: webhook.webhookPath,

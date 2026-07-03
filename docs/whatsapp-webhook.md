@@ -97,7 +97,9 @@ paciente. **Não cria paciente** por padrão (`WHATSAPP_AUTO_CREATE_PATIENT=fals
 
 `sent/delivered/read/failed/...` → grava `WhatsAppWebhookEvent(eventType=status)`
 + `WHATSAPP_STATUS_RECEIVED` (e `WHATSAPP_STATUS_FAILED_RECEIVED` em failed).
-Não atualiza mensagens outbound (envio vem no Prompt 18).
+**Prompt 18:** agora também atualiza o `deliveryStatus` da Message outbound
+correspondente (por `externalMessageId`), sem regressão — ver
+[whatsapp-send.md](./whatsapp-send.md#9-webhook-status--message).
 
 ## 11. Testes locais com curl
 

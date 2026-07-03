@@ -158,6 +158,16 @@ export const AuditAction = {
   PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP: "PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP",
   PATIENT_CREATED_FROM_WHATSAPP: "PATIENT_CREATED_FROM_WHATSAPP",
 
+  // WhatsApp sending (Prompt 18)
+  WHATSAPP_MESSAGE_SEND_REQUESTED: "WHATSAPP_MESSAGE_SEND_REQUESTED",
+  WHATSAPP_MESSAGE_SENT: "WHATSAPP_MESSAGE_SENT",
+  WHATSAPP_MESSAGE_SEND_FAILED: "WHATSAPP_MESSAGE_SEND_FAILED",
+  WHATSAPP_MESSAGE_SEND_BLOCKED: "WHATSAPP_MESSAGE_SEND_BLOCKED",
+  WHATSAPP_MESSAGE_STATUS_UPDATED: "WHATSAPP_MESSAGE_STATUS_UPDATED",
+  WHATSAPP_MESSAGE_DELIVERY_FAILED: "WHATSAPP_MESSAGE_DELIVERY_FAILED",
+  WHATSAPP_SERVICE_WINDOW_EXPIRED: "WHATSAPP_SERVICE_WINDOW_EXPIRED",
+  WHATSAPP_SEND_MOCKED: "WHATSAPP_SEND_MOCKED",
+
   // Other domain events (used in seed samples)
   CLINIC_CREATED: "CLINIC_CREATED",
   USER_CREATED: "USER_CREATED",
@@ -285,6 +295,14 @@ export const auditActionLabels: Record<string, string> = {
   PATIENT_MATCHED_FROM_WHATSAPP: "Paciente associado via WhatsApp",
   PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP: "Associação de paciente ambígua via WhatsApp",
   PATIENT_CREATED_FROM_WHATSAPP: "Paciente criado via WhatsApp",
+  WHATSAPP_MESSAGE_SEND_REQUESTED: "Envio de mensagem WhatsApp solicitado",
+  WHATSAPP_MESSAGE_SENT: "Mensagem WhatsApp enviada",
+  WHATSAPP_MESSAGE_SEND_FAILED: "Falha ao enviar mensagem WhatsApp",
+  WHATSAPP_MESSAGE_SEND_BLOCKED: "Envio de mensagem WhatsApp bloqueado",
+  WHATSAPP_MESSAGE_STATUS_UPDATED: "Status de mensagem WhatsApp atualizado",
+  WHATSAPP_MESSAGE_DELIVERY_FAILED: "Falha na entrega de mensagem WhatsApp",
+  WHATSAPP_SERVICE_WINDOW_EXPIRED: "Janela de atendimento WhatsApp expirada",
+  WHATSAPP_SEND_MOCKED: "Envio WhatsApp simulado (mock)",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
 }
@@ -325,7 +343,9 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "WHATSAPP_ACCESS_DENIED" ||
     action === "WHATSAPP_WEBHOOK_SIGNATURE_INVALID" ||
     action === "WHATSAPP_WEBHOOK_VERIFICATION_FAILED" ||
-    action === "WHATSAPP_STATUS_FAILED_RECEIVED"
+    action === "WHATSAPP_STATUS_FAILED_RECEIVED" ||
+    action === "WHATSAPP_MESSAGE_SEND_FAILED" ||
+    action === "WHATSAPP_MESSAGE_DELIVERY_FAILED"
   ) {
     return "danger"
   }
@@ -358,7 +378,9 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "WHATSAPP_WEBHOOK_DISABLED" ||
     action === "WHATSAPP_WEBHOOK_EVENT_IGNORED" ||
     action === "WHATSAPP_MESSAGE_DUPLICATE_IGNORED" ||
-    action === "PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP"
+    action === "PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP" ||
+    action === "WHATSAPP_MESSAGE_SEND_BLOCKED" ||
+    action === "WHATSAPP_SERVICE_WINDOW_EXPIRED"
   ) {
     return "warning"
   }
@@ -379,7 +401,9 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "WHATSAPP_MESSAGE_RECEIVED" ||
     action === "CONVERSATION_CREATED_FROM_WHATSAPP" ||
     action === "PATIENT_MATCHED_FROM_WHATSAPP" ||
-    action === "PATIENT_CREATED_FROM_WHATSAPP"
+    action === "PATIENT_CREATED_FROM_WHATSAPP" ||
+    action === "WHATSAPP_MESSAGE_SENT" ||
+    action === "WHATSAPP_SEND_MOCKED"
   ) {
     return "success"
   }

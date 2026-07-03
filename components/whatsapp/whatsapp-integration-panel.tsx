@@ -368,6 +368,59 @@ export function WhatsAppIntegrationPanel({
         </CardContent>
       </Card>
 
+      {/* Envio (Prompt 18) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Send className="size-4.5 text-primary" /> Envio de mensagens
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Envio habilitado</span>
+              <EnabledNo value={integration.send.enabled} />
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Modo mock</span>
+              {integration.send.mockMode ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+                  <Info className="size-3.5" /> Ativo (não envia à Meta)
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-muted-foreground">Desativado</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Janela de 24h obrigatória</span>
+              <span className="text-xs font-medium text-foreground">{integration.send.require24hWindow ? "Sim" : "Não (dev)"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Última mensagem enviada</span>
+              <span className="font-medium text-foreground">
+                {integration.send.lastMessageSentAt
+                  ? new Date(integration.send.lastMessageSentAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+                  : "Nunca"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Enviadas hoje</span>
+              <span className="font-medium text-foreground">{integration.send.sentToday}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Falhas de envio hoje</span>
+              <span className={`font-medium ${integration.send.failedToday > 0 ? "text-destructive" : "text-foreground"}`}>
+                {integration.send.failedToday}
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Este módulo envia apenas mensagens de texto dentro da janela de atendimento. Templates serão implementados
+            depois.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Section 3 — next steps */}
       <Card>
         <CardHeader>

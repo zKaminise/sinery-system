@@ -30,6 +30,8 @@ interface DeepHealth {
     hasAppSecret: boolean
     hasWebhookVerifyToken: boolean
     sendMessagesEnabled: boolean
+    sendMockMode: boolean
+    require24hWindow: boolean
     webhookEnabled: boolean
     verifySignature: boolean
     webhookPath: string
@@ -207,8 +209,13 @@ export default function StatusPage() {
           />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Caminho do webhook: <code className="text-foreground">{data?.whatsapp?.webhookPath ?? "—"}</code> · Envio real:{" "}
-          {data?.whatsapp?.sendMessagesEnabled ? "habilitado" : "desativado (próximo prompt)"}
+          Caminho do webhook: <code className="text-foreground">{data?.whatsapp?.webhookPath ?? "—"}</code> · Envio:{" "}
+          {data?.whatsapp?.sendMessagesEnabled
+            ? data?.whatsapp?.sendMockMode
+              ? "habilitado (mock)"
+              : "habilitado"
+            : "desativado"}{" "}
+          · Janela 24h: {data?.whatsapp?.require24hWindow ? "obrigatória" : "desativada (dev)"}
         </p>
       </div>
 

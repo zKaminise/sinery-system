@@ -9,6 +9,7 @@ import { createAuditLog } from "@/lib/audit"
 import { AuditAction } from "@/lib/audit-actions"
 import { getWhatsAppWebhookFlags, getEnvPhoneNumberId } from "@/lib/whatsapp/whatsapp-config"
 import { normalizeWhatsAppPhone, phonesMatch, maskPhone } from "@/lib/whatsapp/whatsapp-phone"
+import { applyDeliveryStatus, mapWebhookStatus, type DeliveryStatus } from "@/lib/whatsapp/whatsapp-delivery-status"
 import { parseWhatsAppWebhookPayload } from "@/lib/whatsapp/whatsapp-webhook-parser"
 import type {
   NormalizedWhatsAppEvent,
@@ -349,6 +350,10 @@ async function processStatusEvent(event: NormalizedStatusEvent): Promise<"proces
         metadata: { status: event.status, errorCount: event.errors?.length ?? 0 },
       })
     }
+
+    // Apply the status to the matching OUTBOUND message (Prompt 18). Status
+    // never regresses; a status for an unknown message is ignored safely.
+    await applyStatusToOutboundMessage(clinicId, event)
   } else {
     logger.warn("Status WhatsApp de phoneNumberId desconhecido", {
       context: "whatsapp.webhook",
@@ -358,6 +363,47 @@ async function processStatusEvent(event: NormalizedStatusEvent): Promise<"proces
   }
 
   return "processed"
+}
+
+/** Advances an outbound Message's deliveryStatus from a webhook status event. */
+async function applyStatusToOutboundMessage(clinicId: string, event: NormalizedStatusEvent): Promise<void> {
+  if (!event.whatsappMessageId) return
+  const mapped = mapWebhookStatus(event.status)
+  if (!mapped) return
+
+  const message = await prisma.message.findFirst({
+    where: { clinicId, externalMessageId: event.whatsappMessageId, externalChannel: "WHATSAPP", direction: "OUTBOUND" },
+    select: { id: true, deliveryStatus: true },
+  })
+  if (!message) return // status for an unknown/other message — ignore safely.
+
+  const next = applyDeliveryStatus(message.deliveryStatus as DeliveryStatus | null, mapped)
+  if (!next) return // no regression / no change.
+
+  const now = new Date()
+  const timestampField =
+    next === "SENT" ? { sentAt: now } : next === "DELIVERED" ? { deliveredAt: now } : next === "READ" ? { readAt: now } : { failedAt: now }
+  const errorFields =
+    next === "FAILED"
+      ? {
+          deliveryErrorCode: event.errors?.[0]?.code ?? "delivery_failed",
+          deliveryErrorMessage: (event.errors?.[0]?.message ?? event.errors?.[0]?.title ?? "").slice(0, 300),
+        }
+      : {}
+
+  await prisma.message.update({
+    where: { id: message.id },
+    data: { deliveryStatus: next, ...timestampField, ...errorFields },
+  })
+
+  await createAuditLog({
+    clinicId,
+    action: next === "FAILED" ? AuditAction.WHATSAPP_MESSAGE_DELIVERY_FAILED : AuditAction.WHATSAPP_MESSAGE_STATUS_UPDATED,
+    entity: "Message",
+    entityId: message.id,
+    description: `Status de entrega atualizado para ${next}.`,
+    metadata: { messageId: message.id, deliveryStatus: next, whatsappMessageId: event.whatsappMessageId },
+  })
 }
 
 /**
