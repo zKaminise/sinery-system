@@ -4,7 +4,7 @@ import { CheckCircle2, CircleAlert, CircleHelp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-export type StatusLevel = "ok" | "error" | "unknown"
+export type StatusLevel = "ok" | "error" | "unknown" | "warning"
 
 interface SystemStatusCardProps {
   label: string
@@ -37,6 +37,13 @@ const statusConfig: Record<
     dot: "bg-warning",
     label: "Verificando",
     StatusIcon: CircleHelp,
+    iconColor: "text-warning",
+  },
+  warning: {
+    badge: "bg-warning/10 text-warning",
+    dot: "bg-warning",
+    label: "Atenção",
+    StatusIcon: CircleAlert,
     iconColor: "text-warning",
   },
 }

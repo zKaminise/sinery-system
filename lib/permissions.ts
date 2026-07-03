@@ -244,3 +244,26 @@ export function canEditAiSettings(role: UserRole): boolean {
 export function canManageKnowledgeBase(role: UserRole): boolean {
   return isOwnerOrAdmin(role)
 }
+
+/**
+ * Only OWNER/ADMIN can see the AI usage/cost panel (/assist/uso) and detailed
+ * cost figures. RECEPTIONIST/PROFESSIONAL are blocked (enforced server-side).
+ */
+export function canViewAiUsage(role: UserRole): boolean {
+  return isOwnerOrAdmin(role)
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp integration (Prompt 16). OWNER/ADMIN manage (edit + verify config);
+// RECEPTIONIST can view basic status; PROFESSIONAL has no access. Enforced
+// server-side, not just in the UI.
+
+/** OWNER/ADMIN may edit the integration and run the config check. */
+export function canManageWhatsAppIntegration(role: UserRole): boolean {
+  return isOwnerOrAdmin(role)
+}
+
+/** OWNER/ADMIN/RECEPTIONIST may view the WhatsApp status. PROFESSIONAL cannot. */
+export function canViewWhatsAppIntegration(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}

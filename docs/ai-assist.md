@@ -195,6 +195,17 @@ compatibilidade de estado, e o guardrail de mensagens sensíveis. Testes de
 `findAvailableSlots` (integração com banco) são feitos manualmente (documentado
 aqui) por dependerem do Prisma.
 
+## 12b. Segurança, custo e uso (Prompt 15)
+
+A camada de piloto real — painel de uso (`/assist/uso`), rate limits, kill
+switches (global + por clínica), custo estimado, classificação de risco,
+detector de prompt injection, detecção de loop e hardening das tools — está
+documentada em detalhe em [ai-safety-and-usage.md](./ai-safety-and-usage.md).
+Resumo: toda mensagem passa por um preflight de segurança (global/clínica →
+prompt injection → risco → rate limit → loop) ANTES de qualquer chamada ao
+modelo; falhas e bloqueios geram `AiUsageLog` + auditoria e transferem para
+humano com segurança.
+
 ## 13. O que ainda NÃO foi implementado
 
 - WhatsApp real / webhook / envio externo

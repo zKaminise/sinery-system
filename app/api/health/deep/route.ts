@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 
 import { prisma } from "@/lib/prisma"
 import { logger } from "@/lib/logger"
+import { getAiPublicStatus } from "@/lib/ai/config"
+import { getWhatsAppHealth } from "@/lib/whatsapp/whatsapp-health"
 
 /**
  * Deeper health check that verifies database connectivity and returns a few
@@ -24,11 +26,35 @@ export async function GET() {
       metadata: { clinicsCount, responseTimeMs },
     })
 
+    // AI + WhatsApp config are safe to expose (never a key/secret) and make NO
+    // external call.
+    const ai = getAiPublicStatus()
+    const whatsapp = getWhatsAppHealth()
+
     return NextResponse.json({
       status: "ok",
       database: "ok",
       clinicsCount,
       responseTimeMs,
+      ai: {
+        effectiveMode: ai.effectiveMode,
+        hasApiKey: ai.hasApiKey,
+        isMock: ai.isMock,
+        globalDisabled: ai.globalDisabled,
+        model: ai.model,
+        useRealAiFlag: ai.useRealAiFlag,
+      },
+      whatsapp: {
+        enabled: whatsapp.enabled,
+        effectiveStatus: whatsapp.effectiveStatus,
+        hasAccessToken: whatsapp.hasAccessToken,
+        hasPhoneNumberId: whatsapp.hasPhoneNumberId,
+        hasAppSecret: whatsapp.hasAppSecret,
+        hasWebhookVerifyToken: whatsapp.hasWebhookVerifyToken,
+        sendMessagesEnabled: whatsapp.sendMessagesEnabled,
+        webhookEnabled: whatsapp.webhookEnabled,
+        graphApiVersion: whatsapp.graphApiVersion,
+      },
       version,
       timestamp,
       environment,

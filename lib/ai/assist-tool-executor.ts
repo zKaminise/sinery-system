@@ -8,6 +8,7 @@ import { validateAndResolveAppointment } from "@/lib/appointments/validate-appoi
 import { findAvailableSlots } from "@/lib/assist/available-slots"
 import { getUpcomingActiveAppointments } from "@/lib/assist/appointment-helpers"
 import { normalize } from "@/lib/assist/intent-detector"
+import { getAiConfig } from "@/lib/ai/config"
 import type { AiAssistContext } from "@/lib/ai/assist-context"
 import { ASSIST_TOOLS, isKnownTool } from "@/lib/ai/assist-tools"
 import { toolArgSchemas } from "@/lib/ai/assist-schemas"
@@ -80,6 +81,37 @@ function fail(toolName: string, ctx: AiAssistContext, reason: string): ToolExecu
   }
 }
 
+/** Hard block for a tool that must not run (unknown/closed/disabled). */
+function blocked(toolName: string, ctx: AiAssistContext, reason: string): ToolExecution {
+  return {
+    ok: false,
+    toolName,
+    resultSummary: `ferramenta bloqueada (${reason})`,
+    replies: [
+      ai(
+        ctx.aiSettings.humanFallbackMessage ??
+          "Não consigo concluir essa ação automática agora. Vou chamar alguém da equipe para te ajudar."
+      ),
+      sys("Ação automática bloqueada por segurança — transferida para atendimento humano."),
+    ],
+    status: "WAITING_HUMAN",
+    flow: { intent: "HUMAN_HELP", step: "TRANSFERRED_TO_HUMAN" },
+    audits: [
+      {
+        action: AuditAction.ASSIST_TOOL_BLOCKED,
+        description: `Ferramenta ${toolName} bloqueada (${reason}).`,
+        metadata: { conversationId: ctx.conversationId, tool: toolName, reason },
+      },
+      {
+        action: AuditAction.ASSIST_TRANSFERRED_TO_HUMAN,
+        description: "A Sinery Assist transferiu a conversa para atendimento humano.",
+        metadata: { conversationId: ctx.conversationId, reason: `tool_blocked_${reason}` },
+      },
+    ],
+    transferred: true,
+  }
+}
+
 function resolveServiceId(ctx: AiAssistContext, args: { serviceId?: string; serviceName?: string }): string | null {
   if (args.serviceId && ctx.services.some((s) => s.id === args.serviceId)) return args.serviceId
   if (args.serviceName) {
@@ -104,9 +136,20 @@ export async function executeAssistTool(
   toolName: string,
   rawArgs: Record<string, unknown>
 ): Promise<ToolExecution> {
-  if (!isKnownTool(toolName)) {
-    return fail(toolName, ctx, "unknown_tool")
-  }
+  // Hardening: block before doing anything if the environment/clinic forbids
+  // automation, the tool is unknown, or the conversation is closed.
+  const cfg = getAiConfig()
+  if (cfg.globalDisabled) return blocked(toolName, ctx, "global_disabled")
+  if (!ctx.aiSettings.enabled) return blocked(toolName, ctx, "clinic_disabled")
+  if (!isKnownTool(toolName)) return blocked(toolName, ctx, "unknown_tool")
+
+  const conv = await prisma.conversation.findFirst({
+    where: { id: ctx.conversationId, clinicId: ctx.clinicId },
+    select: { status: true },
+  })
+  if (!conv) return blocked(toolName, ctx, "conversation_not_found")
+  if (conv.status === "CLOSED") return blocked(toolName, ctx, "conversation_closed")
+
   const meta = ASSIST_TOOLS[toolName]
 
   const schema = toolArgSchemas[toolName]

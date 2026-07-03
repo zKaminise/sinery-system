@@ -1,9 +1,11 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { redirect } from "next/navigation"
+import { MessageCircle, ChevronRight } from "lucide-react"
 
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser, getCurrentUserClinic } from "@/lib/current-user"
-import { canManageClinicSettings, canManageUsers } from "@/lib/permissions"
+import { canManageClinicSettings, canManageUsers, canViewWhatsAppIntegration } from "@/lib/permissions"
 import { SettingsTabs } from "@/components/settings/settings-tabs"
 
 export const metadata: Metadata = {
@@ -58,6 +60,26 @@ export default async function ConfiguracoesPage() {
           Gerencie os dados da clínica, usuários e preferências do sistema.
         </p>
       </div>
+
+      {canViewWhatsAppIntegration(user.role) && (
+        <Link
+          href="/configuracoes/whatsapp"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+        >
+          <span className="flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-success/10 text-success">
+              <MessageCircle className="size-4.5" />
+            </span>
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">Integração WhatsApp Cloud API</span>
+              <span className="text-xs text-muted-foreground">
+                Prepare o recebimento e envio de mensagens pela Sinery Assist (em preparação).
+              </span>
+            </span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </Link>
+      )}
 
       <SettingsTabs
         currentUser={{

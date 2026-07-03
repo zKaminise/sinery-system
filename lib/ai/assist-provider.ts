@@ -3,7 +3,13 @@ import "server-only"
 import { createAuditLog } from "@/lib/audit"
 import { AuditAction } from "@/lib/audit-actions"
 import { getAiConfig } from "@/lib/ai/config"
-import { detectSensitiveOrEmergency, SAFE_SENSITIVE_REPLY } from "@/lib/ai/assist-guardrails"
+import { SAFE_SENSITIVE_REPLY } from "@/lib/ai/assist-guardrails"
+import { classifyAssistMessageRisk, isOperationalSensitive } from "@/lib/ai/assist-risk"
+import { detectPromptInjection, INJECTION_REFUSAL } from "@/lib/ai/assist-injection"
+import { checkAssistRateLimits } from "@/lib/ai/assist-rate-limit"
+import { RATE_LIMIT_TRANSFER_MESSAGE } from "@/lib/ai/assist-rate-limit-core"
+import { detectAssistLoop } from "@/lib/ai/assist-loop"
+import { LOOP_TRANSFER_MESSAGE } from "@/lib/ai/assist-loop-core"
 import { buildAiAssistContext } from "@/lib/ai/assist-context"
 import { buildSystemPrompt, buildContextText } from "@/lib/ai/assist-prompts"
 import { callAssistModel } from "@/lib/ai/openai-client"
@@ -95,24 +101,69 @@ function toResult(mode: AssistProviderMode, turn: AssistTurn, intent: string, co
 export async function processAssistMessage(input: AssistProviderInput): Promise<AssistProviderResult> {
   const { clinicId, conversationId, userId, message } = input
   const cfg = getAiConfig()
+  const baseMode: AssistProviderMode = cfg.useRealAi ? "OPENAI" : "RULE_BASED"
 
   await saveInboundPatientMessage(clinicId, conversationId, userId, message)
 
-  // 1. Safety guardrail — never send sensitive/clinical messages to the model.
-  if (detectSensitiveOrEmergency(message)) {
-    const turn = transferTurn(conversationId, SAFE_SENSITIVE_REPLY, "EMERGENCY_OR_SENSITIVE", "sensitive_message", {
-      action: AuditAction.ASSIST_SENSITIVE_MESSAGE_DETECTED,
-      description: "Mensagem sensível/emergência detectada — não enviada à IA.",
-      metadata: { conversationId },
-    })
-    const aiMeta: AiTurnMeta = {
-      mode: cfg.useRealAi ? "OPENAI" : "RULE_BASED",
-      intent: "EMERGENCY_OR_SENSITIVE",
-      confidence: 1,
-      fallbackReason: "sensitive_message",
+  // Finalizes a short-circuit safety turn (persist + shape the result).
+  const shortCircuit = async (turn: AssistTurn, meta: AiTurnMeta): Promise<AssistProviderResult> => {
+    await persistAssistTurn(clinicId, conversationId, userId, turn, meta)
+    return toResult(meta.mode, turn, meta.intent ?? "UNKNOWN", meta.confidence ?? 1, [])
+  }
+
+  // ===== SAFETY PREFLIGHT (runs BEFORE any model call) =====
+
+  // 1. Global kill switch — no automation at all.
+  if (cfg.globalDisabled) {
+    const turn = transferTurn(
+      conversationId,
+      "No momento o atendimento automático está indisponível. Vou chamar alguém da equipe para te ajudar.",
+      "UNKNOWN",
+      "global_disabled",
+      {
+        action: AuditAction.ASSIST_GLOBAL_DISABLED,
+        description: "Sinery Assist desativada globalmente — transferida para humano.",
+        metadata: { conversationId },
+      }
+    )
+    await recordAiUsage({ clinicId, conversationId, provider: baseMode, mode: baseMode, success: false, errorCode: "GLOBAL_DISABLED" })
+    return shortCircuit(turn, { mode: baseMode, intent: "UNKNOWN", confidence: 1, fallbackReason: "global_disabled" })
+  }
+
+  // 2. Prompt injection — refuse (no model call), keep the conversation open.
+  const injection = detectPromptInjection(message)
+  if (injection.injected) {
+    const turn: AssistTurn = {
+      replies: [ai(INJECTION_REFUSAL)],
+      flow: null,
+      audits: [
+        {
+          action: AuditAction.ASSIST_PROMPT_INJECTION_DETECTED,
+          description: "Tentativa de prompt injection detectada — solicitação recusada.",
+          metadata: { conversationId, reasons: injection.reasons.slice(0, 3) },
+        },
+      ],
     }
-    await persistAssistTurn(clinicId, conversationId, userId, turn, aiMeta)
-    return toResult(aiMeta.mode, turn, "EMERGENCY_OR_SENSITIVE", 1, [])
+    return shortCircuit(turn, { mode: baseMode, intent: "UNKNOWN", confidence: 1, fallbackReason: "prompt_injection" })
+  }
+
+  // 3. Risk classification — HIGH/CRITICAL (and operational-sensitive MEDIUM)
+  //    never reach the model; escalate safely with no diagnosis/medication.
+  const risk = classifyAssistMessageRisk(message)
+  if (risk.level === "CRITICAL" || risk.level === "HIGH" || isOperationalSensitive(risk)) {
+    const riskAudit =
+      risk.level === "CRITICAL"
+        ? { action: AuditAction.ASSIST_CRITICAL_RISK_MESSAGE_DETECTED, description: "Mensagem de risco crítico detectada — transferida para humano.", metadata: { conversationId, reasons: risk.reasons.slice(0, 3) } }
+        : risk.level === "HIGH"
+          ? { action: AuditAction.ASSIST_HIGH_RISK_MESSAGE_DETECTED, description: "Mensagem de risco alto detectada — transferida para humano.", metadata: { conversationId, reasons: risk.reasons.slice(0, 3) } }
+          : undefined
+    const msg =
+      risk.level === "MEDIUM"
+        ? "Sobre isso, prefiro te conectar com alguém da equipe que pode resolver melhor. Já vou chamar."
+        : SAFE_SENSITIVE_REPLY
+    const intent = risk.level === "MEDIUM" ? "HUMAN_HELP" : "EMERGENCY_OR_SENSITIVE"
+    const turn = transferTurn(conversationId, msg, intent, `${risk.level.toLowerCase()}_risk`, riskAudit)
+    return shortCircuit(turn, { mode: baseMode, intent, confidence: 1, fallbackReason: `${risk.level.toLowerCase()}_risk` })
   }
 
   const ruleCtx = await loadAssistContext(clinicId, conversationId, message)
@@ -122,6 +173,49 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
     await persistAssistTurn(clinicId, conversationId, userId, turn, { mode: "RULE_BASED", fallbackReason: "context_unavailable" })
     return toResult("RULE_BASED", turn, "UNKNOWN", 0, [])
   }
+
+  // 4. Clinic kill switch — AiSettings.enabled=false blocks automation.
+  if (!ruleCtx.aiSettings.enabled) {
+    const turn = transferTurn(
+      conversationId,
+      "No momento o atendimento automático está desativado para esta clínica. Vou chamar alguém da equipe.",
+      "UNKNOWN",
+      "clinic_disabled",
+      {
+        action: AuditAction.ASSIST_CLINIC_DISABLED,
+        description: "Sinery Assist desativada nas configurações da clínica — transferida para humano.",
+        metadata: { conversationId },
+      }
+    )
+    await recordAiUsage({ clinicId, conversationId, provider: baseMode, mode: baseMode, success: false, errorCode: "CLINIC_DISABLED" })
+    return shortCircuit(turn, { mode: baseMode, intent: "UNKNOWN", confidence: 1, fallbackReason: "clinic_disabled" })
+  }
+
+  // 5. Rate limits (per-clinic per-minute/day + per-conversation per-minute).
+  const rl = await checkAssistRateLimits(clinicId, conversationId, cfg)
+  if (!rl.allowed) {
+    const isDaily = rl.reason === "clinic_per_day"
+    const turn = transferTurn(conversationId, RATE_LIMIT_TRANSFER_MESSAGE, "UNKNOWN", rl.reason ?? "rate_limit", {
+      action: isDaily ? AuditAction.ASSIST_DAILY_LIMIT_EXCEEDED : AuditAction.ASSIST_RATE_LIMIT_EXCEEDED,
+      description: "Limite de uso da Sinery Assist excedido — transferida para humano.",
+      metadata: { conversationId, reason: rl.reason },
+    })
+    await recordAiUsage({ clinicId, conversationId, provider: baseMode, mode: baseMode, success: false, errorCode: "RATE_LIMIT_EXCEEDED" })
+    return shortCircuit(turn, { mode: baseMode, intent: "UNKNOWN", confidence: 1, fallbackReason: rl.reason ?? "rate_limit" })
+  }
+
+  // 6. Loop detection — repeated replies / stuck flow / repeated tool failures.
+  const loop = await detectAssistLoop(clinicId, conversationId)
+  if (loop.loop) {
+    const turn = transferTurn(conversationId, LOOP_TRANSFER_MESSAGE, "UNKNOWN", `loop_${loop.reason}`, {
+      action: AuditAction.ASSIST_LOOP_DETECTED,
+      description: "Loop de conversa detectado — transferida para humano.",
+      metadata: { conversationId, reason: loop.reason },
+    })
+    return shortCircuit(turn, { mode: baseMode, intent: "UNKNOWN", confidence: 1, fallbackReason: `loop_${loop.reason}` })
+  }
+
+  // ===== END SAFETY PREFLIGHT =====
 
   const isContinuation = Boolean(ruleCtx.flow && ACTIVE_STEPS.has(ruleCtx.flow.step))
 
@@ -134,6 +228,8 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
     const intent = detectIntent(message)
     const aiMeta: AiTurnMeta = { mode, intent, confidence: 1 }
     await persistAssistTurn(clinicId, conversationId, userId, turn, aiMeta)
+    // Always record a usage row (rate limits count rule turns too).
+    await recordAiUsage({ clinicId, conversationId, provider: "RULE_BASED", mode, success: true })
     if (!cfg.useRealAi) {
       await createAuditLog({
         clinicId,
@@ -144,7 +240,6 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
         description: "Sinery Assist respondeu pelo simulador por regras.",
         metadata: { conversationId, reason: cfg.hasApiKey ? "real_ai_disabled" : "no_api_key" },
       })
-      await recordAiUsage({ clinicId, conversationId, provider: "RULE_BASED", success: true })
     }
     return toResult(mode, turn, intent, 1, [])
   }
@@ -157,12 +252,13 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
     await createAuditLog({
       clinicId,
       userId,
-      action: AuditAction.ASSIST_RULE_BASED_FALLBACK_USED,
+      action: AuditAction.ASSIST_DAILY_LIMIT_EXCEEDED,
       entity: "Conversation",
       entityId: conversationId,
       description: "Limite diário de tokens atingido — usando simulador por regras.",
       metadata: { conversationId, reason: "daily_token_limit" },
     })
+    await recordAiUsage({ clinicId, conversationId, provider: "RULE_BASED", mode: "RULE_BASED", success: true })
     return toResult("RULE_BASED", turn, "UNKNOWN", 1, [])
   }
 
@@ -189,7 +285,16 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
       mock: { services: aiCtx.services.map((s) => ({ id: s.id, name: s.name })), timeZone: aiCtx.timeZone },
     })
     raw = res.raw
-    await recordAiUsage({ clinicId, conversationId, provider: "OPENAI", model: cfg.model, usage: res.usage, success: true })
+    await recordAiUsage({
+      clinicId,
+      conversationId,
+      provider: "OPENAI",
+      mode: cfg.isMock ? "MOCK" : "OPENAI",
+      model: cfg.model,
+      usage: res.usage,
+      success: true,
+      latencyMs: Date.now() - started,
+    })
     await createAuditLog({
       clinicId,
       userId,
@@ -208,7 +313,16 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
       totalTokens: res.usage.totalTokens,
     })
   } catch (error) {
-    await recordAiUsage({ clinicId, conversationId, provider: "OPENAI", model: cfg.model, success: false, errorCode: "provider_error" })
+    await recordAiUsage({
+      clinicId,
+      conversationId,
+      provider: "OPENAI",
+      mode: cfg.isMock ? "MOCK" : "OPENAI",
+      model: cfg.model,
+      success: false,
+      errorCode: "provider_error",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
     await createAuditLog({
       clinicId,
       userId,

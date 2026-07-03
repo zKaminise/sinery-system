@@ -136,6 +136,7 @@ model Clinic {
   aiUsageLogs          AiUsageLog[]
   auditLogs            AuditLog[]
   professionalServices ProfessionalService[]
+  whatsAppIntegration  WhatsAppIntegration?
 
   @@index([status])
 }
@@ -413,6 +414,7 @@ model AiUsageLog {
   clinicId             String
   conversationId       String?
   provider             String
+  mode                 String?
   model                String?
   inputTokens          Int?
   outputTokens         Int?
@@ -420,11 +422,70 @@ model AiUsageLog {
   estimatedCostInCents Int?
   success              Boolean  @default(true)
   errorCode            String?
+  errorMessage         String?
+  latencyMs            Int?
+  toolName             String?
   createdAt            DateTime @default(now())
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@index([clinicId, createdAt])
+  @@index([clinicId, success])
+  @@index([clinicId, provider])
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp Cloud API integration (Prompt 16 — preparatory only)
+// ---------------------------------------------------------------------------
+
+enum WhatsAppIntegrationStatus {
+  NOT_CONFIGURED
+  CONFIGURED
+  INVALID_CONFIG
+  DISABLED
+  READY_FOR_WEBHOOK
+  READY_FOR_SEND
+  ERROR
+}
+
+/// Per-clinic WhatsApp integration metadata. NEVER stores the access token,
+/// app secret, or webhook verify token — those live only in server-side env.
+/// Only booleans/non-sensitive ids are persisted here.
+model WhatsAppIntegration {
+  id       String @id @default(cuid())
+  clinicId String @unique
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  enabled  Boolean @default(false)
+  provider String  @default("META_CLOUD_API")
+
+  businessAccountId String?
+  phoneNumberId     String?
+  appId             String?
+
+  displayPhoneNumber String?
+  verifiedName       String?
+
+  webhookPath                  String?
+  webhookVerifyTokenConfigured Boolean @default(false)
+
+  sendMessagesEnabled Boolean @default(false)
+  webhookEnabled      Boolean @default(false)
+
+  status                 WhatsAppIntegrationStatus @default(NOT_CONFIGURED)
+  lastConfigCheckAt      DateTime?
+  lastConfigCheckStatus  String?
+  lastConfigCheckMessage String?
+
+  lastWebhookVerifiedAt DateTime?
+  lastMessageReceivedAt DateTime?
+  lastMessageSentAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([enabled])
 }
 
 // ---------------------------------------------------------------------------

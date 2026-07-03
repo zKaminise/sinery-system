@@ -120,6 +120,27 @@ export const AuditAction = {
   ASSIST_FLOW_COMPLETED: "ASSIST_FLOW_COMPLETED",
   ASSIST_FLOW_FAILED: "ASSIST_FLOW_FAILED",
 
+  // Sinery Assist — safety, cost & usage (Prompt 15)
+  ASSIST_RATE_LIMIT_EXCEEDED: "ASSIST_RATE_LIMIT_EXCEEDED",
+  ASSIST_DAILY_LIMIT_EXCEEDED: "ASSIST_DAILY_LIMIT_EXCEEDED",
+  ASSIST_GLOBAL_DISABLED: "ASSIST_GLOBAL_DISABLED",
+  ASSIST_CLINIC_DISABLED: "ASSIST_CLINIC_DISABLED",
+  ASSIST_LOOP_DETECTED: "ASSIST_LOOP_DETECTED",
+  ASSIST_HIGH_RISK_MESSAGE_DETECTED: "ASSIST_HIGH_RISK_MESSAGE_DETECTED",
+  ASSIST_CRITICAL_RISK_MESSAGE_DETECTED: "ASSIST_CRITICAL_RISK_MESSAGE_DETECTED",
+  ASSIST_PROMPT_INJECTION_DETECTED: "ASSIST_PROMPT_INJECTION_DETECTED",
+  ASSIST_TOOL_BLOCKED: "ASSIST_TOOL_BLOCKED",
+  ASSIST_USAGE_VIEWED: "ASSIST_USAGE_VIEWED",
+  ASSIST_HEALTH_CHECKED: "ASSIST_HEALTH_CHECKED",
+
+  // WhatsApp Cloud API integration (Prompt 16)
+  WHATSAPP_INTEGRATION_VIEWED: "WHATSAPP_INTEGRATION_VIEWED",
+  WHATSAPP_INTEGRATION_UPDATED: "WHATSAPP_INTEGRATION_UPDATED",
+  WHATSAPP_CONFIG_CHECKED: "WHATSAPP_CONFIG_CHECKED",
+  WHATSAPP_CONFIG_INVALID: "WHATSAPP_CONFIG_INVALID",
+  WHATSAPP_CONFIG_READY: "WHATSAPP_CONFIG_READY",
+  WHATSAPP_ACCESS_DENIED: "WHATSAPP_ACCESS_DENIED",
+
   // Other domain events (used in seed samples)
   CLINIC_CREATED: "CLINIC_CREATED",
   USER_CREATED: "USER_CREATED",
@@ -215,6 +236,23 @@ export const auditActionLabels: Record<string, string> = {
   ASSIST_FLOW_CANCELLED_BY_PATIENT: "Fluxo cancelado pelo paciente",
   ASSIST_FLOW_COMPLETED: "Fluxo concluído",
   ASSIST_FLOW_FAILED: "Fluxo com falha",
+  ASSIST_RATE_LIMIT_EXCEEDED: "Limite de requisições excedido",
+  ASSIST_DAILY_LIMIT_EXCEEDED: "Limite diário excedido",
+  ASSIST_GLOBAL_DISABLED: "Assist desativada globalmente",
+  ASSIST_CLINIC_DISABLED: "Assist desativada na clínica",
+  ASSIST_LOOP_DETECTED: "Loop de conversa detectado",
+  ASSIST_HIGH_RISK_MESSAGE_DETECTED: "Mensagem de risco alto detectada",
+  ASSIST_CRITICAL_RISK_MESSAGE_DETECTED: "Mensagem de risco crítico detectada",
+  ASSIST_PROMPT_INJECTION_DETECTED: "Tentativa de prompt injection detectada",
+  ASSIST_TOOL_BLOCKED: "Ferramenta bloqueada",
+  ASSIST_USAGE_VIEWED: "Painel de uso da IA acessado",
+  ASSIST_HEALTH_CHECKED: "Health check da IA executado",
+  WHATSAPP_INTEGRATION_VIEWED: "Integração WhatsApp visualizada",
+  WHATSAPP_INTEGRATION_UPDATED: "Integração WhatsApp atualizada",
+  WHATSAPP_CONFIG_CHECKED: "Configuração WhatsApp verificada",
+  WHATSAPP_CONFIG_INVALID: "Configuração WhatsApp inválida",
+  WHATSAPP_CONFIG_READY: "Configuração WhatsApp pronta",
+  WHATSAPP_ACCESS_DENIED: "Acesso negado à integração WhatsApp",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
 }
@@ -246,7 +284,13 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "ASSIST_TOOL_FAILED" ||
     action === "ASSIST_INVALID_AI_OUTPUT" ||
     action === "ASSIST_SENSITIVE_MESSAGE_DETECTED" ||
-    action === "ASSIST_FLOW_FAILED"
+    action === "ASSIST_FLOW_FAILED" ||
+    action === "ASSIST_HIGH_RISK_MESSAGE_DETECTED" ||
+    action === "ASSIST_CRITICAL_RISK_MESSAGE_DETECTED" ||
+    action === "ASSIST_PROMPT_INJECTION_DETECTED" ||
+    action === "ASSIST_TOOL_BLOCKED" ||
+    action === "ASSIST_DAILY_LIMIT_EXCEEDED" ||
+    action === "WHATSAPP_ACCESS_DENIED"
   ) {
     return "danger"
   }
@@ -270,7 +314,12 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "AI_SETTINGS_UPDATED" ||
     action === "AI_KNOWLEDGE_STATUS_CHANGED" ||
     action === "ASSIST_RULE_BASED_FALLBACK_USED" ||
-    action === "ASSIST_FLOW_CANCELLED_BY_PATIENT"
+    action === "ASSIST_FLOW_CANCELLED_BY_PATIENT" ||
+    action === "ASSIST_RATE_LIMIT_EXCEEDED" ||
+    action === "ASSIST_GLOBAL_DISABLED" ||
+    action === "ASSIST_CLINIC_DISABLED" ||
+    action === "ASSIST_LOOP_DETECTED" ||
+    action === "WHATSAPP_CONFIG_INVALID"
   ) {
     return "warning"
   }
@@ -285,7 +334,8 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "ASSIST_APPOINTMENT_CONFIRMED" ||
     action === "ASSIST_TOOL_EXECUTED" ||
     action === "ASSIST_SLOT_SELECTED" ||
-    action === "ASSIST_FLOW_COMPLETED"
+    action === "ASSIST_FLOW_COMPLETED" ||
+    action === "WHATSAPP_CONFIG_READY"
   ) {
     return "success"
   }

@@ -5,8 +5,10 @@ import { Sparkles, TriangleAlert } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { logger } from "@/lib/logger"
 import { getCurrentUser } from "@/lib/current-user"
-import { canUseAssistSimulator, canEditAiSettings, canManageKnowledgeBase } from "@/lib/permissions"
+import { canUseAssistSimulator, canEditAiSettings, canManageKnowledgeBase, canViewAiUsage } from "@/lib/permissions"
 import { getClinicTimeZone } from "@/lib/appointments/date-utils"
+import { getAssistSecurityOverview, type AssistSecurityOverview } from "@/lib/ai/assist-security-overview"
+import { AssistSecurityCard } from "@/components/assist/assist-security-card"
 import {
   getAssistSimulations,
   getAssistSimulationDetail,
@@ -63,17 +65,19 @@ export default async function AssistPage({
   let aiSettings: AiSettingsData | null = null
   let knowledge: KnowledgeItem[] = []
   let patients: { id: string; name: string }[] = []
+  let securityOverview: AssistSecurityOverview | null = null
   let selected: AssistSimulationDetail | null = null
   let loadFailed = false
 
   try {
-    ;[simulations, summary, runtime, aiSettings, knowledge, patients] = await Promise.all([
+    ;[simulations, summary, runtime, aiSettings, knowledge, patients, securityOverview] = await Promise.all([
       getAssistSimulations(user.clinicId),
       getAssistSummary(user.clinicId),
       getAssistRuntimeInfo(user.clinicId),
       getAiSettings(user.clinicId),
       getKnowledgeBase(user.clinicId),
       getAssistPatients(user.clinicId),
+      getAssistSecurityOverview(user.clinicId),
     ])
     if (selectedId) {
       selected = await getAssistSimulationDetail(user.clinicId, selectedId)
@@ -117,6 +121,10 @@ export default async function AssistPage({
       ) : (
         <>
           <AssistSummaryCards summary={summary} />
+
+          {securityOverview && (
+            <AssistSecurityCard overview={securityOverview} canViewUsage={canViewAiUsage(user.role)} />
+          )}
 
           <AssistPageClient
             items={simulations}

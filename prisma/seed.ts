@@ -772,12 +772,34 @@ async function main() {
     ],
   })
 
+  // WhatsApp integration (Prompt 16 — preparatory, NEVER stores a token).
+  await prisma.whatsAppIntegration.upsert({
+    where: { clinicId: clinic.id },
+    update: {
+      provider: "META_CLOUD_API",
+      displayPhoneNumber: "+55 34 99999-0000",
+      verifiedName: "Clínica Sorria Odonto",
+    },
+    create: {
+      clinicId: clinic.id,
+      enabled: false,
+      provider: "META_CLOUD_API",
+      displayPhoneNumber: "+55 34 99999-0000",
+      verifiedName: "Clínica Sorria Odonto",
+      status: "NOT_CONFIGURED",
+      sendMessagesEnabled: false,
+      webhookEnabled: false,
+      webhookVerifyTokenConfigured: false,
+      webhookPath: "/api/webhooks/whatsapp",
+    },
+  })
+
   console.log("Seed concluído:")
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
   console.log(`  Profissionais: 4, Pacientes: 5, Serviços: 6, Vínculos: 7, Agendamentos: ${appointments.length}`)
-  console.log(`  Conversas de teste: 4 + 2 simulações da Assist · Base de conhecimento: 5 itens`)
+  console.log(`  Conversas de teste: 4 + 2 simulações da Assist · Base de conhecimento: 5 itens · WhatsApp: NOT_CONFIGURED`)
 }
 
 main()

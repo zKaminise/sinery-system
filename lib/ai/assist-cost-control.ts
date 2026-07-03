@@ -2,21 +2,21 @@ import "server-only"
 
 import { prisma } from "@/lib/prisma"
 import { getClinicTimeZone, clinicToday, getDayRangeUtc } from "@/lib/appointments/date-utils"
+import { estimateAiCostInCents } from "@/lib/ai/assist-cost"
 
 interface UsageInput {
   clinicId: string
   conversationId?: string
   provider: "OPENAI" | "RULE_BASED"
+  mode?: string | null
   model?: string | null
   usage?: { inputTokens: number; outputTokens: number; totalTokens: number }
   success: boolean
   errorCode?: string
+  errorMessage?: string
+  latencyMs?: number
+  toolName?: string
 }
-
-// Rough per-token cost (cents) for the default small model, only used for a
-// non-authoritative "estimated cost" metric — never billed on.
-const COST_PER_INPUT_TOKEN_CENTS = 0.000015
-const COST_PER_OUTPUT_TOKEN_CENTS = 0.00006
 
 /** Total tokens the clinic has used TODAY (clinic timezone). */
 export async function getTodayTokenTotal(clinicId: string): Promise<number> {
@@ -41,20 +41,33 @@ export async function isDailyTokenLimitExceeded(clinicId: string, limit: number)
   return total >= limit
 }
 
-/** Records one usage row (best-effort; never throws into the caller). */
+/** Truncates + strips anything that could leak a key/prompt from an error string. */
+function sanitizeErrorMessage(raw: string | undefined): string | null {
+  if (!raw) return null
+  return raw
+    .replace(/sk-[a-zA-Z0-9_-]+/g, "[redacted-key]")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .slice(0, 300)
+}
+
+/**
+ * Records one usage row (best-effort; never throws into the caller). Stores
+ * mode/latency/tool/sanitized error and a NON-authoritative estimated cost.
+ * Never stores the API key, the prompt, or the raw provider payload.
+ */
 export async function recordAiUsage(input: UsageInput): Promise<void> {
   try {
-    const estimatedCostInCents = input.usage
-      ? Math.round(
-          input.usage.inputTokens * COST_PER_INPUT_TOKEN_CENTS +
-            input.usage.outputTokens * COST_PER_OUTPUT_TOKEN_CENTS
-        )
-      : 0
+    const estimatedCostInCents = estimateAiCostInCents({
+      model: input.provider === "RULE_BASED" ? "mock" : input.model,
+      inputTokens: input.usage?.inputTokens,
+      outputTokens: input.usage?.outputTokens,
+    })
     await prisma.aiUsageLog.create({
       data: {
         clinicId: input.clinicId,
         conversationId: input.conversationId ?? null,
         provider: input.provider,
+        mode: input.mode ?? input.provider,
         model: input.model ?? null,
         inputTokens: input.usage?.inputTokens ?? null,
         outputTokens: input.usage?.outputTokens ?? null,
@@ -62,6 +75,9 @@ export async function recordAiUsage(input: UsageInput): Promise<void> {
         estimatedCostInCents,
         success: input.success,
         errorCode: input.errorCode ?? null,
+        errorMessage: sanitizeErrorMessage(input.errorMessage),
+        latencyMs: input.latencyMs ?? null,
+        toolName: input.toolName ?? null,
       },
     })
   } catch {
