@@ -133,6 +133,7 @@ model Clinic {
   conversations        Conversation[]
   messages             Message[]
   knowledgeBase        AiKnowledgeBase[]
+  aiUsageLogs          AiUsageLog[]
   auditLogs            AuditLog[]
   professionalServices ProfessionalService[]
 
@@ -335,6 +336,10 @@ model Conversation {
   contactPhone      String?
   status            ConversationStatus  @default(AI_HANDLING)
   assignedUserId    String?
+  /// Free-form per-conversation state. Used by the Sinery Assist simulator to
+  /// persist deterministic flow state (assistFlow: intent/step/detected data/
+  /// suggested slots) between messages, since there is no real AI/session.
+  metadata          Json?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -397,6 +402,29 @@ model AiKnowledgeBase {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@index([clinicId])
+}
+
+/// Per-message record of AI provider usage for the Sinery Assist, used for
+/// simple cost control (daily token limit) and usage metrics. `provider` is
+/// "OPENAI" or "RULE_BASED"; token counts are best-effort (null when unknown).
+/// Never stores prompt/message content or any secret.
+model AiUsageLog {
+  id                   String   @id @default(cuid())
+  clinicId             String
+  conversationId       String?
+  provider             String
+  model                String?
+  inputTokens          Int?
+  outputTokens         Int?
+  totalTokens          Int?
+  estimatedCostInCents Int?
+  success              Boolean  @default(true)
+  errorCode            String?
+  createdAt            DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, createdAt])
 }
 
 // ---------------------------------------------------------------------------

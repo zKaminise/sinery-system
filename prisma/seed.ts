@@ -63,6 +63,8 @@ async function main() {
         },
       },
       aiSettings: {
+        // Enabled with scheduling/rescheduling/cancelling on, so the Sinery
+        // Assist simulator can demonstrate the full flow out of the box.
         create: {
           assistantName: "Sinery Assist",
           enabled: true,
@@ -71,9 +73,9 @@ async function main() {
           humanFallbackMessage:
             "Vou te transferir para nossa recepção para continuar o atendimento.",
           canAnswerPricing: true,
-          canSchedule: false,
-          canReschedule: false,
-          canCancel: false,
+          canSchedule: true,
+          canReschedule: true,
+          canCancel: true,
         },
       },
     },
@@ -696,12 +698,86 @@ async function main() {
     ],
   })
 
+  // Knowledge base for the Sinery Assist simulator. Idempotent via the clinic
+  // delete-cascade at the top of the seed.
+  await prisma.aiKnowledgeBase.createMany({
+    data: [
+      {
+        clinicId: clinic.id,
+        title: "Endereço da clínica",
+        content: "Atendemos em São Paulo - SP. Para o endereço completo e referências, fale com a recepção.",
+        active: true,
+      },
+      {
+        clinicId: clinic.id,
+        title: "Formas de pagamento",
+        content: "Aceitamos dinheiro, PIX e cartões de crédito/débito. Parcelamento sujeito à avaliação.",
+        active: true,
+      },
+      {
+        clinicId: clinic.id,
+        title: "Política de cancelamento",
+        content: "Cancelamentos e remarcações devem ser feitos com pelo menos 24 horas de antecedência.",
+        active: true,
+      },
+      {
+        clinicId: clinic.id,
+        title: "Sobre a avaliação inicial",
+        content: "A avaliação inicial dura cerca de 30 minutos e serve para indicar o melhor tratamento.",
+        active: true,
+      },
+      {
+        clinicId: clinic.id,
+        title: "Sobre a limpeza",
+        content: "A limpeza (profilaxia) remove tártaro e placa, com duração aproximada de 60 minutos.",
+        active: true,
+      },
+    ],
+  })
+
+  // Two Sinery Assist demo simulations (INTERNAL_SIMULATOR + AI messages).
+  await seedConversation({
+    patient: patientMariana,
+    status: "AI_HANDLING",
+    messages: [
+      { direction: "INBOUND", senderType: "PATIENT", content: "Quero marcar uma limpeza amanhã", minutesAgo: 20 },
+      {
+        direction: "OUTBOUND",
+        senderType: "AI",
+        content:
+          "Encontrei estes horários para Limpeza amanhã:\n1. 09:00 com Dr. Felipe Andrade\n\nResponda com o número da opção desejada.",
+        minutesAgo: 19,
+      },
+    ],
+  })
+
+  await seedConversation({
+    patient: patientCarla,
+    status: "WAITING_HUMAN",
+    messages: [
+      { direction: "INBOUND", senderType: "PATIENT", content: "estou com muita dor, qual remédio tomar?", minutesAgo: 10 },
+      {
+        direction: "OUTBOUND",
+        senderType: "AI",
+        content:
+          "Sinto muito por isso. Para sua segurança, vou chamar alguém da equipe para te orientar corretamente. Se for uma emergência, procure atendimento imediatamente.",
+        minutesAgo: 9,
+      },
+      {
+        direction: "OUTBOUND",
+        senderType: "SYSTEM",
+        content: "Mensagem sensível detectada. Conversa transferida para atendimento humano.",
+        minutesAgo: 9,
+      },
+    ],
+  })
+
   console.log("Seed concluído:")
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
   console.log(`  Profissionais: 4, Pacientes: 5, Serviços: 6, Vínculos: 7, Agendamentos: ${appointments.length}`)
-  console.log(`  Conversas de teste: 4 (WAITING_HUMAN, HUMAN_HANDLING, AI_HANDLING, CLOSED)`)
+  console.log(`  Conversas de teste: 4 + 2 simulações da Assist · Base de conhecimento: 5 itens`)
 }
 
 main()

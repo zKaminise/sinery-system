@@ -219,3 +219,28 @@ export function canManageConversations(role: UserRole): boolean {
 export function canAssignConversationToOthers(role: UserRole): boolean {
   return isOwnerOrAdmin(role)
 }
+
+// ---------------------------------------------------------------------------
+// Sinery Assist (simulador) + configuração da IA
+// ---------------------------------------------------------------------------
+//
+// Per product decision (V1): OWNER, ADMIN and RECEPTIONIST can run the
+// deterministic Assist simulator (create simulations, type patient messages).
+// PROFESSIONAL is read-only — sees /assist but cannot start or drive a
+// simulation. Editing the AiSettings and the knowledge base is an
+// administrative task restricted to OWNER/ADMIN. Everything is enforced
+// server-side.
+
+/** OWNER/ADMIN/RECEPTIONIST can operate the Assist simulator. */
+export function canUseAssistSimulator(role: UserRole): boolean {
+  return role !== "PROFESSIONAL"
+}
+
+/** Only OWNER/ADMIN may edit AiSettings and the knowledge base. */
+export function canEditAiSettings(role: UserRole): boolean {
+  return isOwnerOrAdmin(role)
+}
+
+export function canManageKnowledgeBase(role: UserRole): boolean {
+  return isOwnerOrAdmin(role)
+}
