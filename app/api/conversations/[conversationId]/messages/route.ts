@@ -20,10 +20,20 @@ export async function POST(
   // Tenant guard: a conversation from another clinic simply doesn't exist.
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, clinicId: auth.user.clinicId },
-    select: { id: true, status: true, assignedUserId: true },
+    select: { id: true, status: true, assignedUserId: true, channel: true },
   })
   if (!conversation) {
     return errorResponse("Conversa não encontrada.", 404)
+  }
+
+  // Prompt 17: real WhatsApp sending is not implemented yet. Block replies on
+  // WHATSAPP conversations so nobody thinks a message was delivered. The
+  // INTERNAL_SIMULATOR channel keeps working normally.
+  if (conversation.channel === "WHATSAPP") {
+    return errorResponse(
+      "O envio real pelo WhatsApp será ativado no próximo passo. Por enquanto, você pode apenas visualizar as mensagens recebidas.",
+      409
+    )
   }
 
   if (!canManageConversations(auth.user.role)) {

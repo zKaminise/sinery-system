@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, RefreshCw, Server, Database, Layers, Clock, Sparkles, KeyRound, Cpu, ShieldAlert, MessageCircle, Webhook, Send } from "lucide-react"
+import { Loader2, RefreshCw, Server, Database, Layers, Clock, Sparkles, KeyRound, Cpu, ShieldAlert, MessageCircle, Webhook } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,8 @@ interface DeepHealth {
     hasWebhookVerifyToken: boolean
     sendMessagesEnabled: boolean
     webhookEnabled: boolean
+    verifySignature: boolean
+    webhookPath: string
     graphApiVersion: string
   }
   version?: string
@@ -198,12 +200,16 @@ export default function StatusPage() {
             icon={Webhook}
           />
           <SystemStatusCard
-            label="Envio de mensagens"
-            status={data?.whatsapp?.sendMessagesEnabled ? "ok" : "warning"}
-            value={data?.whatsapp ? (data.whatsapp.sendMessagesEnabled ? "Habilitado" : "Desativado") : "—"}
-            icon={Send}
+            label="Validação de assinatura"
+            status={data?.whatsapp ? (data.whatsapp.verifySignature ? "ok" : "warning") : "unknown"}
+            value={data?.whatsapp ? (data.whatsapp.verifySignature ? "Ativa" : "Desativada (dev)") : "—"}
+            icon={ShieldAlert}
           />
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Caminho do webhook: <code className="text-foreground">{data?.whatsapp?.webhookPath ?? "—"}</code> · Envio real:{" "}
+          {data?.whatsapp?.sendMessagesEnabled ? "habilitado" : "desativado (próximo prompt)"}
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">

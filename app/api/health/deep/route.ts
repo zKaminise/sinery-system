@@ -53,6 +53,8 @@ export async function GET() {
         hasWebhookVerifyToken: whatsapp.hasWebhookVerifyToken,
         sendMessagesEnabled: whatsapp.sendMessagesEnabled,
         webhookEnabled: whatsapp.webhookEnabled,
+        verifySignature: whatsapp.verifySignature,
+        webhookPath: whatsapp.webhookPath,
         graphApiVersion: whatsapp.graphApiVersion,
       },
       version,

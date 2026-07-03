@@ -141,6 +141,23 @@ export const AuditAction = {
   WHATSAPP_CONFIG_READY: "WHATSAPP_CONFIG_READY",
   WHATSAPP_ACCESS_DENIED: "WHATSAPP_ACCESS_DENIED",
 
+  // WhatsApp webhook (Prompt 17)
+  WHATSAPP_WEBHOOK_VERIFIED: "WHATSAPP_WEBHOOK_VERIFIED",
+  WHATSAPP_WEBHOOK_VERIFICATION_FAILED: "WHATSAPP_WEBHOOK_VERIFICATION_FAILED",
+  WHATSAPP_WEBHOOK_RECEIVED: "WHATSAPP_WEBHOOK_RECEIVED",
+  WHATSAPP_WEBHOOK_SIGNATURE_INVALID: "WHATSAPP_WEBHOOK_SIGNATURE_INVALID",
+  WHATSAPP_WEBHOOK_DISABLED: "WHATSAPP_WEBHOOK_DISABLED",
+  WHATSAPP_WEBHOOK_EVENT_IGNORED: "WHATSAPP_WEBHOOK_EVENT_IGNORED",
+  WHATSAPP_MESSAGE_RECEIVED: "WHATSAPP_MESSAGE_RECEIVED",
+  WHATSAPP_MESSAGE_DUPLICATE_IGNORED: "WHATSAPP_MESSAGE_DUPLICATE_IGNORED",
+  WHATSAPP_STATUS_RECEIVED: "WHATSAPP_STATUS_RECEIVED",
+  WHATSAPP_STATUS_FAILED_RECEIVED: "WHATSAPP_STATUS_FAILED_RECEIVED",
+  CONVERSATION_CREATED_FROM_WHATSAPP: "CONVERSATION_CREATED_FROM_WHATSAPP",
+  CONVERSATION_REOPENED_FROM_WHATSAPP: "CONVERSATION_REOPENED_FROM_WHATSAPP",
+  PATIENT_MATCHED_FROM_WHATSAPP: "PATIENT_MATCHED_FROM_WHATSAPP",
+  PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP: "PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP",
+  PATIENT_CREATED_FROM_WHATSAPP: "PATIENT_CREATED_FROM_WHATSAPP",
+
   // Other domain events (used in seed samples)
   CLINIC_CREATED: "CLINIC_CREATED",
   USER_CREATED: "USER_CREATED",
@@ -253,6 +270,21 @@ export const auditActionLabels: Record<string, string> = {
   WHATSAPP_CONFIG_INVALID: "Configuração WhatsApp inválida",
   WHATSAPP_CONFIG_READY: "Configuração WhatsApp pronta",
   WHATSAPP_ACCESS_DENIED: "Acesso negado à integração WhatsApp",
+  WHATSAPP_WEBHOOK_VERIFIED: "Webhook WhatsApp verificado",
+  WHATSAPP_WEBHOOK_VERIFICATION_FAILED: "Falha na verificação do webhook WhatsApp",
+  WHATSAPP_WEBHOOK_RECEIVED: "Webhook WhatsApp recebido",
+  WHATSAPP_WEBHOOK_SIGNATURE_INVALID: "Assinatura do webhook WhatsApp inválida",
+  WHATSAPP_WEBHOOK_DISABLED: "Webhook WhatsApp desativado",
+  WHATSAPP_WEBHOOK_EVENT_IGNORED: "Evento de webhook WhatsApp ignorado",
+  WHATSAPP_MESSAGE_RECEIVED: "Mensagem recebida via WhatsApp",
+  WHATSAPP_MESSAGE_DUPLICATE_IGNORED: "Mensagem WhatsApp duplicada ignorada",
+  WHATSAPP_STATUS_RECEIVED: "Status WhatsApp recebido",
+  WHATSAPP_STATUS_FAILED_RECEIVED: "Status de falha WhatsApp recebido",
+  CONVERSATION_CREATED_FROM_WHATSAPP: "Conversa criada via WhatsApp",
+  CONVERSATION_REOPENED_FROM_WHATSAPP: "Conversa reaberta via WhatsApp",
+  PATIENT_MATCHED_FROM_WHATSAPP: "Paciente associado via WhatsApp",
+  PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP: "Associação de paciente ambígua via WhatsApp",
+  PATIENT_CREATED_FROM_WHATSAPP: "Paciente criado via WhatsApp",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
 }
@@ -290,7 +322,10 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "ASSIST_PROMPT_INJECTION_DETECTED" ||
     action === "ASSIST_TOOL_BLOCKED" ||
     action === "ASSIST_DAILY_LIMIT_EXCEEDED" ||
-    action === "WHATSAPP_ACCESS_DENIED"
+    action === "WHATSAPP_ACCESS_DENIED" ||
+    action === "WHATSAPP_WEBHOOK_SIGNATURE_INVALID" ||
+    action === "WHATSAPP_WEBHOOK_VERIFICATION_FAILED" ||
+    action === "WHATSAPP_STATUS_FAILED_RECEIVED"
   ) {
     return "danger"
   }
@@ -319,7 +354,11 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "ASSIST_GLOBAL_DISABLED" ||
     action === "ASSIST_CLINIC_DISABLED" ||
     action === "ASSIST_LOOP_DETECTED" ||
-    action === "WHATSAPP_CONFIG_INVALID"
+    action === "WHATSAPP_CONFIG_INVALID" ||
+    action === "WHATSAPP_WEBHOOK_DISABLED" ||
+    action === "WHATSAPP_WEBHOOK_EVENT_IGNORED" ||
+    action === "WHATSAPP_MESSAGE_DUPLICATE_IGNORED" ||
+    action === "PATIENT_MATCH_AMBIGUOUS_FROM_WHATSAPP"
   ) {
     return "warning"
   }
@@ -335,7 +374,12 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "ASSIST_TOOL_EXECUTED" ||
     action === "ASSIST_SLOT_SELECTED" ||
     action === "ASSIST_FLOW_COMPLETED" ||
-    action === "WHATSAPP_CONFIG_READY"
+    action === "WHATSAPP_CONFIG_READY" ||
+    action === "WHATSAPP_WEBHOOK_VERIFIED" ||
+    action === "WHATSAPP_MESSAGE_RECEIVED" ||
+    action === "CONVERSATION_CREATED_FROM_WHATSAPP" ||
+    action === "PATIENT_MATCHED_FROM_WHATSAPP" ||
+    action === "PATIENT_CREATED_FROM_WHATSAPP"
   ) {
     return "success"
   }

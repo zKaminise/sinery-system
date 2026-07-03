@@ -95,7 +95,8 @@ registra auditoria. **Não** envia mensagem nem chama a Graph API.
 
 ## 11. Próximos prompts
 
-- **Prompt 17**: webhook real de recebimento (handshake GET + validação de
-  assinatura `X-Hub-Signature-256` com o App Secret; cria Conversation/Message).
+- **Prompt 17 (FEITO)**: webhook real de recebimento — ver
+  [whatsapp-webhook.md](./whatsapp-webhook.md) (handshake GET + validação de
+  assinatura `X-Hub-Signature-256` + Conversation/Message idempotentes).
 - **Prompt 18**: envio real de mensagens (POST na Graph API).
 - **Prompt 19**: fluxo completo WhatsApp + Sinery Assist + atendimento humano.

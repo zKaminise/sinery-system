@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, Phone } from "lucide-react"
+import { ArrowLeft, Phone, MessageCircle, Info } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge"
@@ -44,6 +44,11 @@ export function ConversationThread({
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-semibold text-foreground">{conversation.displayName}</p>
             <ConversationStatusBadge status={conversation.status} />
+            {conversation.channel === "WHATSAPP" && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+                <MessageCircle className="size-3" /> WhatsApp
+              </span>
+            )}
           </div>
           <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
             <Phone className="size-3" />
@@ -68,9 +73,18 @@ export function ConversationThread({
         ))}
       </div>
 
-      {/* Composer (only for managers; read-only roles never see it) */}
-      {canManage && (
-        <MessageComposer conversationId={conversation.id} status={conversation.status} />
+      {/* Composer: WHATSAPP conversations cannot reply yet (real send is a
+          later prompt). INTERNAL_SIMULATOR keeps the normal composer. */}
+      {canManage && conversation.channel === "WHATSAPP" ? (
+        <div className="flex items-start gap-2 border-t border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-warning" />
+          <span>
+            Envio pelo WhatsApp será implementado no próximo prompt. Por enquanto, você pode apenas visualizar as
+            mensagens recebidas — respostas ainda não são enviadas ao paciente.
+          </span>
+        </div>
+      ) : (
+        canManage && <MessageComposer conversationId={conversation.id} status={conversation.status} />
       )}
     </div>
   )

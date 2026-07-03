@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { UserRound, Phone } from "lucide-react"
+import { UserRound, Phone, MessageCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge"
@@ -36,6 +36,9 @@ export function ConversationListItem({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           {pending && <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden />}
+          {conversation.channel === "WHATSAPP" && (
+            <MessageCircle className="size-3.5 shrink-0 text-success" aria-label="WhatsApp" />
+          )}
           <span className="truncate text-sm font-medium text-foreground">
             {conversation.displayName}
           </span>

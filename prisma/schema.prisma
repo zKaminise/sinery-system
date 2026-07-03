@@ -137,6 +137,7 @@ model Clinic {
   auditLogs            AuditLog[]
   professionalServices ProfessionalService[]
   whatsAppIntegration  WhatsAppIntegration?
+  whatsAppWebhookEvents WhatsAppWebhookEvent[]
 
   @@index([status])
 }
@@ -360,6 +361,10 @@ model Message {
   senderType     MessageSenderType
   content        String
   metadata       Json?
+  // External-channel provenance (WhatsApp, etc.). Null for internal messages.
+  externalMessageId String?
+  externalChannel   String?
+  externalTimestamp DateTime?
   createdAt      DateTime          @default(now())
 
   clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -367,6 +372,8 @@ model Message {
 
   @@index([clinicId])
   @@index([conversationId])
+  @@index([externalMessageId])
+  @@index([externalChannel])
 }
 
 // ---------------------------------------------------------------------------
@@ -484,8 +491,48 @@ model WhatsAppIntegration {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  webhookEvents WhatsAppWebhookEvent[]
+
   @@index([status])
   @@index([enabled])
+}
+
+/// One row per received WhatsApp webhook event. Guarantees idempotency via a
+/// unique payloadHash (Meta re-delivers). NEVER stores the raw payload or any
+/// secret — only a hash + non-sensitive summary fields.
+model WhatsAppWebhookEvent {
+  id String @id @default(cuid())
+
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  integrationId String?
+  integration   WhatsAppIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  eventType         String
+  whatsappMessageId String?
+  whatsappStatusId  String?
+  phoneNumberId     String?
+  fromPhone         String?
+  payloadHash       String
+
+  processed    Boolean @default(false)
+  ignored      Boolean @default(false)
+  errorCode    String?
+  errorMessage String?
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([payloadHash])
+  @@index([clinicId])
+  @@index([integrationId])
+  @@index([eventType])
+  @@index([whatsappMessageId])
+  @@index([phoneNumberId])
+  @@index([receivedAt])
 }
 
 // ---------------------------------------------------------------------------

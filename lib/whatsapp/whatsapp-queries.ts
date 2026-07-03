@@ -7,6 +7,7 @@ import {
   getWhatsAppRuntimeConfig,
   getWhatsAppEnvIds,
   validateWhatsAppEnv,
+  getWhatsAppWebhookFlags,
 } from "@/lib/whatsapp/whatsapp-config"
 import { statusMessage, type WhatsAppSafeConfig, type WhatsAppIntegrationStatus } from "@/lib/whatsapp/whatsapp-validate"
 import { maskWhatsAppId } from "@/lib/whatsapp/whatsapp-mask"
@@ -34,6 +35,16 @@ export interface WhatsAppIntegrationView {
   env: WhatsAppSafeConfig
   issues: string[]
   warnings: string[]
+  /** Webhook status (Prompt 17). */
+  webhook: {
+    enabled: boolean
+    verifySignature: boolean
+    hasVerifyToken: boolean
+    path: string
+    lastWebhookVerifiedAt: string | null
+    lastMessageReceivedAt: string | null
+    recentEventsCount: number
+  }
 }
 
 /** Ensures a row exists for the clinic (idempotent) and returns the raw record. */
@@ -54,9 +65,20 @@ function toView(
   liveStatus: WhatsAppIntegrationStatus,
   env: WhatsAppSafeConfig,
   issues: string[],
-  warnings: string[]
+  warnings: string[],
+  recentEventsCount = 0
 ): WhatsAppIntegrationView {
+  const webhookFlags = getWhatsAppWebhookFlags()
   return {
+    webhook: {
+      enabled: webhookFlags.webhookEnabled,
+      verifySignature: webhookFlags.verifySignature,
+      hasVerifyToken: webhookFlags.hasVerifyToken,
+      path: webhookFlags.webhookPath,
+      lastWebhookVerifiedAt: row.lastWebhookVerifiedAt ? row.lastWebhookVerifiedAt.toISOString() : null,
+      lastMessageReceivedAt: row.lastMessageReceivedAt ? row.lastMessageReceivedAt.toISOString() : null,
+      recentEventsCount,
+    },
     id: row.id,
     enabled: row.enabled,
     provider: row.provider,
@@ -85,10 +107,11 @@ export async function getWhatsAppIntegration(clinicId: string): Promise<WhatsApp
   const row = await ensureRow(clinicId)
   const env = getWhatsAppRuntimeConfig()
   const validation = validateWhatsAppEnv()
+  const recentEventsCount = await prisma.whatsAppWebhookEvent.count({ where: { clinicId } })
   // Live status combines env config with the clinic's `enabled` toggle: if the
   // clinic turned it off, it's DISABLED regardless of env.
   const liveStatus = !row.enabled && validation.status !== "NOT_CONFIGURED" ? "DISABLED" : validation.status
-  return toView(row, liveStatus, env, validation.issues, validation.warnings)
+  return toView(row, liveStatus, env, validation.issues, validation.warnings, recentEventsCount)
 }
 
 /** Updates the editable fields (enabled/displayPhoneNumber/verifiedName). */

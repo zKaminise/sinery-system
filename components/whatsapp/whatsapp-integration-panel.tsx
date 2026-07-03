@@ -75,6 +75,8 @@ export function WhatsAppIntegrationPanel({
 
   const badge = STATUS_BADGE[integration.status] ?? STATUS_BADGE.NOT_CONFIGURED
   const env = integration.env
+  const webhookBase = process.env.NEXT_PUBLIC_APP_URL || "https://seu-dominio-publico"
+  const webhookUrl = `${webhookBase}${integration.webhook.path}`
 
   async function save() {
     setSaving(true)
@@ -297,6 +299,72 @@ export function WhatsAppIntegrationPanel({
               </ul>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Webhook (Prompt 17) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Webhook className="size-4.5 text-primary" /> Webhook de recebimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            URL do webhook (configure na Meta)
+            <input className={inputClass} value={webhookUrl} disabled readOnly />
+          </label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Recebimento</span>
+              <EnabledNo value={integration.webhook.enabled} />
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Verify token</span>
+              <YesNo value={integration.webhook.hasVerifyToken} />
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Validação de assinatura</span>
+              {integration.webhook.verifySignature ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+                  <CircleCheck className="size-3.5" /> Ativa
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+                  <Info className="size-3.5" /> Desativada (apenas dev)
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Eventos recebidos</span>
+              <span className="font-medium text-foreground">{integration.webhook.recentEventsCount}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Última verificação (GET)</span>
+              <span className="font-medium text-foreground">
+                {integration.webhook.lastWebhookVerifiedAt
+                  ? new Date(integration.webhook.lastWebhookVerifiedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+                  : "Nunca"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Última mensagem recebida</span>
+              <span className="font-medium text-foreground">
+                {integration.webhook.lastMessageReceivedAt
+                  ? new Date(integration.webhook.lastMessageReceivedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+                  : "Nunca"}
+              </span>
+            </div>
+          </div>
+          {!integration.webhook.verifySignature && (
+            <p className="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
+              Validação de assinatura desativada. Use apenas em desenvolvimento.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Para validar na Meta, o sistema precisa estar acessível publicamente via HTTPS. Localhost não funciona sem um
+            túnel como ngrok ou um ambiente de staging.
+          </p>
         </CardContent>
       </Card>
 

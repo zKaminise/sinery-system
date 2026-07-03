@@ -32,7 +32,35 @@ function readEnv() {
     sendMessagesEnabled: bool(process.env.WHATSAPP_SEND_MESSAGES_ENABLED),
     webhookEnabled: bool(process.env.WHATSAPP_WEBHOOK_ENABLED),
     allowLiveCheck: bool(process.env.WHATSAPP_ALLOW_CONFIG_LIVE_CHECK),
+    // Signature verification defaults ON (safe). Set to "false" only in dev.
+    verifySignature: (process.env.WHATSAPP_VERIFY_SIGNATURE ?? "true").trim().toLowerCase() !== "false",
+    autoCreatePatient: bool(process.env.WHATSAPP_AUTO_CREATE_PATIENT),
+    autoProcessAssist: bool(process.env.WHATSAPP_AUTO_PROCESS_ASSIST),
   }
+}
+
+/** SERVER-ONLY. Webhook processing flags (safe booleans, no secrets). */
+export function getWhatsAppWebhookFlags() {
+  const env = readEnv()
+  return {
+    webhookEnabled: env.webhookEnabled,
+    verifySignature: env.verifySignature,
+    hasVerifyToken: present(env.webhookVerifyToken),
+    hasAppSecret: present(env.appSecret),
+    autoCreatePatient: env.autoCreatePatient,
+    autoProcessAssist: env.autoProcessAssist,
+    webhookPath: env.webhookPath,
+  }
+}
+
+/** SERVER-ONLY. The webhook verify token value (only used by the GET handshake). */
+export function getWhatsAppVerifyToken(): string {
+  return readEnv().webhookVerifyToken
+}
+
+/** SERVER-ONLY. The env phone number id (dev fallback mapping). */
+export function getEnvPhoneNumberId(): string {
+  return readEnv().phoneNumberId
 }
 
 /**
