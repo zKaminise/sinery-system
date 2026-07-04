@@ -150,6 +150,12 @@ model Clinic {
   whatsAppWebhookEvents WhatsAppWebhookEvent[]
   assistProcessingRuns  AssistProcessingRun[]
 
+  // Commercial / billing (Prompt 21 — Founder/Platform admin).
+  subscription         ClinicSubscription?
+  billingInvoices      BillingInvoice[]
+  billingEvents        BillingEvent[]
+  billingNotifications BillingNotificationLog[]
+
   @@index([status])
 }
 
@@ -626,4 +632,282 @@ model AuditLog {
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([clinicId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Platform / Founder admin (Prompt 21)
+// ---------------------------------------------------------------------------
+
+/// Platform-level operator of the Sinery SaaS (the founder + future staff).
+/// NOT a clinic user: has no clinicId, uses a separate session cookie, and can
+/// only reach /founder routes. Never mixed with the per-clinic User model.
+model PlatformUser {
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  passwordHash      String
+  role              PlatformRole       @default(FOUNDER)
+  status            PlatformUserStatus @default(ACTIVE)
+  temporaryPassword Boolean            @default(true)
+  passwordChangedAt DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+enum PlatformRole {
+  FOUNDER
+  PLATFORM_ADMIN
+  SUPPORT
+  FINANCE
+}
+
+enum PlatformUserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// A commercial plan offered to clinics. Prices are integer cents.
+model Plan {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  priceInCents Int    @default(0)
+  currency     String @default("BRL")
+
+  billingInterval BillingInterval @default(MONTHLY)
+
+  maxUsers                    Int?
+  maxProfessionals            Int?
+  maxPatients                 Int?
+  maxAppointmentsPerMonth     Int?
+  maxAiMessagesPerMonth       Int?
+  maxWhatsappMessagesPerMonth Int?
+
+  includesWhatsapp Boolean @default(false)
+  includesAi       Boolean @default(false)
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions ClinicSubscription[]
+}
+
+enum BillingInterval {
+  FREE
+  MONTHLY
+  YEARLY
+  ONE_TIME
+  CUSTOM
+}
+
+/// One subscription per clinic (the commercial relationship). Manual billing
+/// only in V1 — no real payment provider yet.
+model ClinicSubscription {
+  id String @id @default(cuid())
+
+  clinicId String @unique
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  planId String?
+  plan   Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  status SubscriptionStatus @default(TRIALING)
+
+  billingType   BillingType   @default(MANUAL)
+  paymentMethod PaymentMethod @default(MANUAL)
+
+  amountInCents Int    @default(0)
+  currency      String @default("BRL")
+
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  nextDueDate        DateTime?
+
+  graceDays    Int       @default(20)
+  overdueSince DateTime?
+  suspendedAt  DateTime?
+  cancelledAt  DateTime?
+
+  freeReason    String?
+  internalNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices BillingInvoice[]
+
+  @@index([status])
+  @@index([nextDueDate])
+}
+
+enum SubscriptionStatus {
+  FREE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXEMPT
+}
+
+enum BillingType {
+  MANUAL
+  CHECKOUT
+  API
+  EXTERNAL
+}
+
+enum PaymentMethod {
+  MANUAL
+  PIX
+  BOLETO
+  CREDIT_CARD
+  BANK_TRANSFER
+  FREE
+  OTHER
+}
+
+/// A billing invoice (manual in V1). External* fields are placeholders for a
+/// future Asaas/Stripe integration.
+model BillingInvoice {
+  id String @id @default(cuid())
+
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  subscriptionId String?
+  subscription   ClinicSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  invoiceNumber String?
+
+  status        InvoiceStatus @default(PENDING)
+  paymentMethod PaymentMethod @default(MANUAL)
+
+  amountInCents Int
+  currency      String @default("BRL")
+
+  dueDate     DateTime
+  paidAt      DateTime?
+  cancelledAt DateTime?
+
+  externalProvider   String?
+  externalInvoiceId  String?
+  externalPaymentUrl String?
+
+  manualPaymentReference String?
+  internalNotes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+  MANUALLY_CONFIRMED
+}
+
+/// Append-only commercial event log for a clinic (created invoice, marked paid,
+/// suspended, etc.). Human-readable trail visible in the founder panel.
+model BillingEvent {
+  id String @id @default(cuid())
+
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  subscriptionId String?
+  invoiceId      String?
+
+  type     String
+  message  String?
+  metadata Json?
+
+  createdByPlatformUserId String?
+  createdAt               DateTime @default(now())
+
+  @@index([clinicId])
+  @@index([subscriptionId])
+  @@index([invoiceId])
+  @@index([type])
+}
+
+/// Preview/log of a billing notification. In V1 nothing is actually sent — rows
+/// stay PENDING/MOCKED. A future Resend integration will flip these to SENT.
+model BillingNotificationLog {
+  id String @id @default(cuid())
+
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  invoiceId String?
+  type      BillingNotificationType
+
+  status BillingNotificationStatus @default(PENDING)
+
+  recipientEmail String
+  subject        String?
+  preview        String?
+
+  sentAt       DateTime?
+  failedAt     DateTime?
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId])
+  @@index([invoiceId])
+  @@index([type])
+  @@index([status])
+}
+
+enum BillingNotificationType {
+  PAYMENT_DUE_SOON
+  PAYMENT_DUE_TODAY
+  PAYMENT_OVERDUE
+  PAYMENT_SUSPENSION_WARNING
+  PAYMENT_SUSPENDED
+  PAYMENT_CONFIRMED
+}
+
+enum BillingNotificationStatus {
+  PENDING
+  MOCKED
+  SENT
+  FAILED
+}
+
+/// Platform-level audit trail (founder actions). Separate from the per-clinic
+/// AuditLog because these actions are not scoped to a single tenant.
+model PlatformAuditLog {
+  id String @id @default(cuid())
+
+  platformUserId String?
+  action         String
+  targetType     String?
+  targetId       String?
+  metadata       Json?
+  ipAddress      String?
+  userAgent      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([platformUserId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }

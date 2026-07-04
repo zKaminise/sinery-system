@@ -29,8 +29,10 @@ Regras de ouro:
 
 | Variável | Tipo | Padrão | Descrição |
 |---|---|---|---|
-| `SESSION_COOKIE_NAME` | ⚪ | `sinery_session` | Nome do cookie de sessão (httpOnly). |
-| `SESSION_MAX_AGE_SECONDS` | ⚪ | `604800` (7d) | Validade da sessão. |
+| `SESSION_COOKIE_NAME` | ⚪ | `sinery_session` | Nome do cookie de sessão da clínica (httpOnly). |
+| `SESSION_MAX_AGE_SECONDS` | ⚪ | `604800` (7d) | Validade da sessão da clínica. |
+| `SESSION_PLATFORM_COOKIE_NAME` | ⚪ | `sinery_platform_session` | Cookie da sessão do painel Founder (`/founder`), separada da clínica. |
+| `SESSION_PLATFORM_MAX_AGE_SECONDS` | ⚪ | `86400` (1d) | Validade da sessão do Founder. |
 | `NEXT_PUBLIC_APP_URL` | ⚪ | `http://localhost:3000` | URL pública, usada em links absolutos (não é segredo). |
 | `NEXT_PUBLIC_ROOT_DOMAIN` | ⚪ | `localhost:3000` | Domínio raiz para resolver subdomínio da clínica (não é segredo). |
 

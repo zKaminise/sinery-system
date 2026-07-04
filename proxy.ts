@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 import { decryptSession, getSessionCookieName } from "@/lib/session"
+import { decryptPlatformSession, getPlatformCookieName } from "@/lib/platform/platform-session"
 
 // Starting with Next.js 16, "Middleware" is called "Proxy" — this file
 // replaces what used to be middleware.ts. See node_modules/next/dist/docs.
@@ -38,6 +39,22 @@ function isProtectedPath(pathname: string): boolean {
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Founder / platform area — uses a SEPARATE cookie from the clinic session.
+  // A clinic user (clinic cookie only) never passes this, and a platform user
+  // never reaches the clinic area (they lack a clinic cookie).
+  if (pathname === "/founder" || pathname.startsWith("/founder/")) {
+    const platformToken = request.cookies.get(getPlatformCookieName())?.value
+    const platformSession = await decryptPlatformSession(platformToken)
+    if (pathname === "/founder/login") {
+      if (platformSession) return NextResponse.redirect(new URL("/founder", request.url))
+      return NextResponse.next()
+    }
+    if (!platformSession) {
+      return NextResponse.redirect(new URL("/founder/login", request.url))
+    }
+    return NextResponse.next()
+  }
 
   const token = request.cookies.get(getSessionCookieName())?.value
   const session = await decryptSession(token)

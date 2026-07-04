@@ -62,3 +62,24 @@ export const getCurrentUserClinic = cache(async (): Promise<Clinic | null> => {
 
   return prisma.clinic.findUnique({ where: { id: user.clinicId } })
 })
+
+/**
+ * Lighter check used by the authenticated layout to show a clear "suspended"
+ * screen. Unlike getCurrentUser (which returns null for any non-ACTIVE clinic),
+ * this returns the actual clinic status for a valid, active user session so the
+ * layout can distinguish "suspended/inactive" from "not logged in".
+ */
+export const getSessionClinicStatus = cache(
+  async (): Promise<{ userActive: boolean; clinicStatus: Clinic["status"] } | null> => {
+    const session = await getSessionFromCookies()
+    if (!session) return null
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { status: true, clinic: { select: { status: true } } },
+    })
+    if (!user) return null
+
+    return { userActive: user.status === "ACTIVE", clinicStatus: user.clinic.status }
+  }
+)

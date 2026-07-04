@@ -804,12 +804,76 @@ async function main() {
     },
   })
 
+  // --- Platform / billing (Prompt 21) ---------------------------------------
+  // PlatformUser is NOT clinic-scoped, so it survives the clinic delete/recreate;
+  // upsert keeps it idempotent (and preserves a changed password on re-seed).
+  const founderPasswordHash = await bcrypt.hash("Sinery@123", 10)
+  await prisma.platformUser.upsert({
+    where: { email: "founder@sinery.local" },
+    // Reset to the demo provisional password on every seed (dev convenience).
+    update: { passwordHash: founderPasswordHash, temporaryPassword: true, status: "ACTIVE" },
+    create: {
+      name: "Gabriel Founder",
+      email: "founder@sinery.local",
+      passwordHash: founderPasswordHash,
+      role: "FOUNDER",
+      status: "ACTIVE",
+      temporaryPassword: true,
+    },
+  })
+
+  // Commercial plans (idempotent by slug).
+  const planSeed = [
+    { name: "Free / Internal", slug: "free-internal", priceInCents: 0, billingInterval: "FREE" as const, includesAi: false, includesWhatsapp: false, description: "Uso interno / cortesia." },
+    { name: "Founder Pilot", slug: "founder-pilot", priceInCents: 19700, billingInterval: "MONTHLY" as const, includesAi: true, includesWhatsapp: true, description: "Plano piloto do founder." },
+    { name: "Pro Clinic", slug: "pro-clinic", priceInCents: 39700, billingInterval: "MONTHLY" as const, includesAi: true, includesWhatsapp: true, description: "Clínica em operação." },
+    { name: "Premium Clinic", slug: "premium-clinic", priceInCents: 69700, billingInterval: "MONTHLY" as const, includesAi: true, includesWhatsapp: true, description: "Clínica com uso intenso." },
+    { name: "Annual Pro", slug: "annual-pro", priceInCents: 397000, billingInterval: "YEARLY" as const, includesAi: true, includesWhatsapp: true, description: "Pro no plano anual." },
+  ]
+  for (const p of planSeed) {
+    await prisma.plan.upsert({ where: { slug: p.slug }, update: p, create: p })
+  }
+  const founderPilot = await prisma.plan.findUnique({ where: { slug: "founder-pilot" } })
+
+  // Subscription + invoices for the demo clinic (cascade-deleted with the clinic).
+  const seedNow = new Date()
+  const nextDue = new Date(seedNow.getTime() + 15 * 86_400_000)
+  const lastMonth = new Date(seedNow.getTime() - 20 * 86_400_000)
+  const subscription = await prisma.clinicSubscription.create({
+    data: {
+      clinicId: clinic.id,
+      planId: founderPilot?.id,
+      status: "ACTIVE",
+      billingType: "MANUAL",
+      paymentMethod: "MANUAL",
+      amountInCents: 19700,
+      currentPeriodStart: seedNow,
+      nextDueDate: nextDue,
+      graceDays: 20,
+      internalNotes: "Clínica de demonstração (seed).",
+    },
+  })
+  await prisma.billingInvoice.create({
+    data: { clinicId: clinic.id, subscriptionId: subscription.id, status: "PAID", paymentMethod: "PIX", amountInCents: 19700, dueDate: lastMonth, paidAt: lastMonth, manualPaymentReference: "Pix seed" },
+  })
+  await prisma.billingInvoice.create({
+    data: { clinicId: clinic.id, subscriptionId: subscription.id, status: "PENDING", paymentMethod: "MANUAL", amountInCents: 19700, dueDate: nextDue },
+  })
+  await prisma.billingEvent.createMany({
+    data: [
+      { clinicId: clinic.id, subscriptionId: subscription.id, type: "CLINIC_CREATED", message: "Clínica de demonstração criada pelo seed." },
+      { clinicId: clinic.id, subscriptionId: subscription.id, type: "INVOICE_PAID", message: "Pagamento inicial registrado (seed)." },
+    ],
+  })
+
   console.log("Seed concluído:")
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
   console.log(`  Profissionais: 4, Pacientes: 5, Serviços: 6, Vínculos: 7, Agendamentos: ${appointments.length}`)
   console.log(`  Conversas de teste: 4 + 2 simulações da Assist · Base de conhecimento: 5 itens · WhatsApp: NOT_CONFIGURED`)
+  console.log(`  Founder: founder@sinery.local — senha provisória Sinery@123 (painel /founder)`)
+  console.log(`  Planos: 5 · Assinatura: Founder Pilot (ACTIVE) · Faturas: 1 paga + 1 pendente`)
 }
 
 main()

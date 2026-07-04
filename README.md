@@ -22,6 +22,10 @@ For login, sessions, and the AUTH_SECRET/provisional-password flow, see
 [V1 release checklist](./docs/v1-release-checklist.md) and the
 [environment variables reference](./docs/environment-variables.md).
 
+**Operating the SaaS (founder panel)?** See
+[docs/founder-admin.md](./docs/founder-admin.md) — the internal `/founder` area to
+create clinics, plans, subscriptions, invoices and suspensions manually.
+
 Then, run the development server:
 
 ```bash

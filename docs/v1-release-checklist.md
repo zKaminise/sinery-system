@@ -58,11 +58,15 @@ Checklist:
 ## 3. Seed por ambiente
 
 - **Local / staging (demo):** `npm run db:seed` cria a clínica fake `sorria-odonto`
-  com usuários de senha provisória `Sinery@123`.
+  com usuários de senha provisória `Sinery@123` + o **PlatformUser** dev
+  `founder@sinery.local` / `Sinery@123` + planos/assinatura/faturas de demonstração.
 - **Produção:** o seed **aborta** se `NODE_ENV=production` (guard em
   `prisma/seed.ts`). Para forçar em staging use `SEED_ALLOW_PRODUCTION=true`.
 - [ ] Produção **não** roda o seed de demonstração
 - [ ] Clínica/usuário reais criados por processo próprio (não pelo seed fake)
+- [ ] **Founder de produção criado manualmente** (não usar `founder@sinery.local`):
+      gere o hash e insira um `PlatformUser` FOUNDER real com senha forte. Ver
+      [docs/founder-admin.md](./founder-admin.md).
 
 ## 4. Segurança
 

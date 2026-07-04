@@ -1,13 +1,27 @@
 import { redirect } from "next/navigation"
 
-import { getCurrentUser, getCurrentUserClinic } from "@/lib/current-user"
+import { getCurrentUser, getCurrentUserClinic, getSessionClinicStatus } from "@/lib/current-user"
+import { evaluateClinicAccess } from "@/lib/platform/clinic-access"
 import { AppShell } from "@/components/layout/app-shell"
+import { ClinicBlockedScreen } from "@/components/layout/clinic-blocked-screen"
 
 export default async function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Commercial suspension guard (Prompt 21): a valid, active user whose CLINIC
+  // is SUSPENDED/INACTIVE gets a clear block screen instead of being bounced to
+  // /login (getCurrentUser would return null for a non-ACTIVE clinic). This
+  // blocks ONLY this clinic — other clinics are unaffected.
+  const access = await getSessionClinicStatus()
+  if (access?.userActive) {
+    const clinicAccess = evaluateClinicAccess(access.clinicStatus)
+    if (clinicAccess.blocked) {
+      return <ClinicBlockedScreen reason={clinicAccess.reason ?? "suspended"} />
+    }
+  }
+
   // Authoritative, database-backed checks. The Proxy (proxy.ts) already did
   // an optimistic cookie check before this layout even runs, but the
   // temporaryPassword redirect specifically requires a DB read, which Proxy
