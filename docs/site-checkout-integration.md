@@ -9,11 +9,11 @@ sistema Sinery.
 | Ambiente | Base |
 |---|---|
 | Local | `http://localhost:3000` |
-| Staging | `https://staging.app.sinery.com.br` |
+| HML | `https://hml.app.sinery.com.br` |
 | Produção | `https://app.sinery.com.br` |
 
-Ex.: `POST https://staging.app.sinery.com.br/api/public/checkout/start` e
-`GET https://staging.app.sinery.com.br/api/public/checkout/{publicId}`.
+Ex.: `POST https://hml.app.sinery.com.br/api/public/checkout/start` e
+`GET https://hml.app.sinery.com.br/api/public/checkout/{publicId}`.
 
 ## 1. Iniciar assinatura
 

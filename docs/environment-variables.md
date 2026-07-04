@@ -1,8 +1,32 @@
 # Variáveis de ambiente — Sinery System
 
 Referência completa das variáveis usadas pelo Sinery System, separadas por
-ambiente. **Nunca** coloque valores reais neste arquivo nem no `.env.example` —
-apenas em `.env` (local) ou no gerenciador de segredos do provedor (staging/prod).
+ambiente. **Nunca** coloque valores reais neste arquivo nem em nenhum `*.example` —
+apenas nos arquivos `*.local` (não versionados) ou no gerenciador de segredos do
+provedor (Vercel → Environment Variables).
+
+## Padrão de arquivos `.env` (local / HML / produção)
+
+O projeto separa os ambientes assim:
+
+| Arquivo | Commitado? | Para quê |
+|---|---|---|
+| `.env.example` | ✅ sim | Índice/template universal (esta referência em forma de arquivo). |
+| `.env.local.example` | ✅ sim | Template com valores **seguros/fakes** de desenvolvimento local. |
+| `.env.staging.example` | ✅ sim | Template com **placeholders** de HML. |
+| `.env.production.example` | ✅ sim | Template com **placeholders** de produção. |
+| `.env` / `.env.local` | ❌ nunca | Desenvolvimento local real (Docker na porta 5544). |
+| `.env.staging.local` | ❌ nunca | Opcional: rodar HML localmente. **A Vercel NÃO lê este arquivo.** |
+| `.env.production.local` | ❌ nunca | Opcional: rodar produção localmente. **A Vercel NÃO lê este arquivo.** |
+
+- **Local**: `cp .env.local.example .env.local` e ajuste. O Next carrega `.env.local`
+  automaticamente.
+- **HML/Produção na Vercel**: as variáveis vêm do **painel** (Environment Variables),
+  não de arquivos `.local`. Use os `*.example` só como lista de nomes.
+- **`APP_ENV` é a fonte de verdade do ambiente funcional** (`local` | `staging` | `production`),
+  não o `NODE_ENV` — a Vercel usa `NODE_ENV=production` até em builds de HML. Veja
+  [`docs/deploy-staging.md`](deploy-staging.md) e [`docs/vercel-staging.md`](vercel-staging.md).
+- Valide o ambiente atual com `npm run env:check` (mostra o que falta **por nome**, nunca valores).
 
 Regras de ouro:
 
@@ -10,8 +34,9 @@ Regras de ouro:
   (token, senha, connection string, app secret).
 - **Segredos só no servidor**: `AUTH_SECRET`, `DATABASE_URL`, `OPENAI_API_KEY`,
   `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`,
-  `SENTRY_AUTH_TOKEN`.
-- `.env*` está no `.gitignore` — não comite `.env`.
+  `SENTRY_AUTH_TOKEN`, `RESEND_API_KEY`, `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`,
+  `PLATFORM_FOUNDER_TEMP_PASSWORD`.
+- `.gitignore` ignora os `.env*` reais e libera só os `*.example` — não comite segredos.
 
 > Legenda: ✅ obrigatória · ⚪ opcional · 🔒 segredo (server-only)
 
@@ -21,9 +46,13 @@ Regras de ouro:
 
 | Variável | Tipo | Descrição |
 |---|---|---|
-| `DATABASE_URL` | ✅ 🔒 | Connection string PostgreSQL. |
-| `AUTH_SECRET` | ✅ 🔒 | Chave que assina o JWT de sessão (jose). Gere com `openssl rand -base64 32`. **Em produção o app se recusa a subir com o placeholder `change-me-in-development` ou com menos de 32 caracteres** (`lib/auth-secret.ts`). |
-| `DEFAULT_TENANT_SLUG` | ✅ | Slug da clínica usada como fallback quando não há usuário logado. Deve existir em `Clinic.slug`. |
+| `APP_ENV` | ✅ | Ambiente funcional: `local` \| `staging` (ou `hml`) \| `production`. **Fonte de verdade** do readiness (`lib/env/env-readiness.ts`), independente de `NODE_ENV`. `SINERY_ENV` é um alias aceito com precedência. |
+| `DATABASE_URL` | ✅ 🔒 | Connection string PostgreSQL. Local: Docker (porta 5544). HML/PRD: Neon (`?sslmode=require`), **bancos separados por ambiente**. |
+| `AUTH_SECRET` | ✅ 🔒 | Chave que assina o JWT de sessão (jose). Gere com `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` (ou `openssl rand -base64 32`). **Único por ambiente** (HML ≠ PRD). **Em produção/staging o app se recusa a subir com placeholder ou < 32 caracteres** (`lib/auth-secret.ts`). |
+| `DEFAULT_TENANT_SLUG` | ✅/⚪ | Slug da clínica usada como fallback quando não há usuário logado. Local: `sorria-odonto`. HML/PRD: normalmente vazio. |
+| `NEXT_PUBLIC_APP_URL` / `APP_URL` | ✅ | URL pública do app. Local `http://localhost:3000`; HML `https://hml.app.sinery.com.br`; PRD `https://app.sinery.com.br`. `APP_URL` é o equivalente server-side (não exposto ao bundle). |
+| `PLATFORM_FOUNDER_EMAIL` | ⚪ | E-mail do Founder criado pelo seed/bootstrap (fallback `founder@sinery.local`). |
+| `PLATFORM_FOUNDER_TEMP_PASSWORD` | ⚪ 🔒 | Senha provisória do Founder **só para o primeiro bootstrap**. A conta nasce `temporaryPassword: true` (troca no 1º login). **Rotacione/remova depois em produção.** |
 
 ## 2. Recomendadas / com padrão seguro
 
@@ -163,3 +192,32 @@ Com tudo vazio a integração fica "não configurada" e o app roda normalmente.
 | `WHATSAPP_SEND_MOCK_MODE` | `true` | `true` (piloto) | `false` |
 | `ASSIST_USE_REAL_AI` | `false`/`mock` | conforme teste | conforme decisão |
 | Seed | `db:seed` livre | `SEED_ALLOW_PRODUCTION=true` p/ demo | **não rodar seed fake** |
+
+---
+
+## Onde obter × o que gerar manualmente
+
+| Variável | Como conseguir | Segredo? | `NEXT_PUBLIC`? |
+|---|---|---|---|
+| `DATABASE_URL` | **Buscar**: painel do Neon → Connection string (branch HML e branch PRD separadas). | 🔒 | não |
+| `AUTH_SECRET` | **Gerar**: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. Um por ambiente. | 🔒 | não |
+| `RESEND_API_KEY` | **Buscar**: dashboard Resend → API Keys. | 🔒 | não |
+| `ASAAS_API_KEY` | **Buscar**: painel Asaas → Integrações → API Key (sandbox vs produção). | 🔒 | não |
+| `ASAAS_WEBHOOK_TOKEN` | **Gerar**: `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`; cole o mesmo valor no webhook do Asaas. | 🔒 | não |
+| `OPENAI_API_KEY` | **Buscar**: platform.openai.com → API Keys. | 🔒 | não |
+| `WHATSAPP_ACCESS_TOKEN` / `_APP_SECRET` / `_PHONE_NUMBER_ID` / `_BUSINESS_ACCOUNT_ID` / `_APP_ID` | **Buscar**: Meta for Developers (WhatsApp Cloud API). | 🔒 (token/secret) | não |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | **Gerar**: string aleatória; use a mesma no painel da Meta. | 🔒 | não |
+| `PLATFORM_FOUNDER_TEMP_PASSWORD` | **Gerar**: senha forte só p/ bootstrap; troque no 1º login e remova. | 🔒 | não |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | **Buscar**: Sentry → Project Settings → Client Keys (DSN). | DSN não é forte | só o `NEXT_PUBLIC_` |
+| `APP_ENV`, `NEXT_PUBLIC_APP_URL`, `APP_URL`, domínios, flags de mock | **Definir manualmente** conforme o ambiente (ver `*.example`). | não | as `NEXT_PUBLIC_*` sim |
+
+### Como preencher as envs na Vercel
+
+1. Crie **um projeto Vercel para HML** e **outro para PRD**, ambos apontando para este repositório.
+2. Em cada projeto: **Settings → Environment Variables**.
+3. Copie os **nomes** do `.env.staging.example` (HML) ou `.env.production.example` (PRD).
+4. Preencha os **valores reais** (buscar/gerar conforme a tabela acima) — cada projeto tem envs próprias.
+5. Garanta `APP_ENV=staging` no projeto HML e `APP_ENV=production` no projeto PRD.
+6. Bancos e `AUTH_SECRET` **diferentes** entre HML e PRD.
+7. **Nunca** cole segredos em docs, chat ou nos arquivos `*.example`.
+8. Rode `npm run env:check` localmente (com `.env.staging.local`/`.env.production.local`) para conferir o que falta **por nome** antes do deploy.

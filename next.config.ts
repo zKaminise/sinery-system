@@ -34,4 +34,8 @@ const nextConfig: NextConfig = {
   },
 };
 
+// NOTE: Sentry is wired MANUALLY (instrumentation.ts + instrumentation-client.ts
+// + lib/observability/sentry-options.ts, DSN-guarded with PII scrubbing) and NOT
+// via withSentryConfig — that wrapper is intentionally avoided in this project
+// (Turbopack build + no source-map upload by design). See docs/observability.md.
 export default nextConfig;

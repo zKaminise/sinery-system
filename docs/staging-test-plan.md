@@ -46,7 +46,7 @@ Testar checkout mock + webhook Asaas mock (ver [asaas-integration.md](./asaas-in
 
 ## D. Checklist quando staging estiver no ar
 
-- [ ] `https://staging.app.sinery.com.br/status`
+- [ ] `https://hml.app.sinery.com.br/status`
 - [ ] `.../api/health` e `.../api/health/deep` (readiness ok, sem segredo)
 - [ ] Login founder → criar clínica → login OWNER
 - [ ] Recuperação de senha

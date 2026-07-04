@@ -30,8 +30,17 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — real envs are NEVER committed (contain secrets).
+.env
+.env.local
+.env.staging.local
+.env.production.local
+.env*.local
+# ...but the *.example templates ARE committed (no secrets, only placeholders).
+!.env.example
+!.env.local.example
+!.env.staging.example
+!.env.production.example
 
 # vercel
 .vercel
@@ -41,3 +50,6 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# Sentry Config File
+.env.sentry-build-plugin

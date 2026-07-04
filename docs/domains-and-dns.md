@@ -9,7 +9,7 @@ Arquitetura recomendada. **Site** e **sistema** podem (e devem) ser projetos Ver
 |---|---|---|
 | `sinery.com.br` / `www.sinery.com.br` | **Site** | Institucional + formulário de checkout |
 | `app.sinery.com.br` | **Sistema** | Login geral / produção |
-| `staging.app.sinery.com.br` | **Sistema** | Homologação/staging |
+| `hml.app.sinery.com.br` | **Sistema** | Homologação / HML (staging) |
 | `{slug}.app.sinery.com.br` | **Sistema** | Tenant (clínica) futuro (wildcard) |
 
 - O **site** (`sinery.com.br`) chama a **API do sistema** (`.../api/public/checkout/start`).
@@ -24,7 +24,7 @@ Passe `rootDomain="sinery.com.br"`:
 | `localhost` | `default` (DEFAULT_TENANT_SLUG) |
 | `sinery.com.br`, `www.sinery.com.br` | `marketing` (nunca clínica) |
 | `app.sinery.com.br` | `app` (login geral) |
-| `staging.app.sinery.com.br` | `app` (`staging` é reservado → NÃO vira clínica) |
+| `hml.app.sinery.com.br` | `app` (`hml`/`staging` são reservados → NÃO viram clínica) |
 | `{slug}.app.sinery.com.br` | `clinic` slug |
 | `admin/api/checkout/dev/... .app.sinery.com.br` | `app` (slug reservado) |
 
@@ -51,7 +51,7 @@ Para `{slug}.app.sinery.com.br`:
 
 ## URLs da API pública de checkout
 
-- Staging: `https://staging.app.sinery.com.br/api/public/checkout/start`
+- HML: `https://hml.app.sinery.com.br/api/public/checkout/start`
 - Produção: `https://app.sinery.com.br/api/public/checkout/start`
 
 Contrato completo: [site-checkout-integration.md](./site-checkout-integration.md).

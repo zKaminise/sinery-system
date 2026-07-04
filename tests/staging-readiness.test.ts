@@ -15,7 +15,8 @@ describe("tenant resolver — production hostnames", () => {
   it("app.sinery.com.br → app root", () => {
     expect(resolveTenantFromHost("app.sinery.com.br", opts).kind).toBe("app")
   })
-  it("staging.app.sinery.com.br → app (staging is reserved, not a clinic)", () => {
+  it("hml/staging .app.sinery.com.br → app (both reserved, not a clinic)", () => {
+    expect(resolveTenantFromHost("hml.app.sinery.com.br", opts).kind).toBe("app")
     expect(resolveTenantFromHost("staging.app.sinery.com.br", opts).kind).toBe("app")
   })
   it("sorria.app.sinery.com.br → clinic sorria", () => {

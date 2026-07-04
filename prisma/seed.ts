@@ -807,14 +807,20 @@ async function main() {
   // --- Platform / billing (Prompt 21) ---------------------------------------
   // PlatformUser is NOT clinic-scoped, so it survives the clinic delete/recreate;
   // upsert keeps it idempotent (and preserves a changed password on re-seed).
-  const founderPasswordHash = await bcrypt.hash("Sinery@123", 10)
+  // The founder bootstrap credentials can be overridden per environment via
+  // PLATFORM_FOUNDER_EMAIL / PLATFORM_FOUNDER_TEMP_PASSWORD (falling back to the
+  // dev demo values). The account is always temporaryPassword: true, so the
+  // first login forces a password change.
+  const founderEmail = (process.env.PLATFORM_FOUNDER_EMAIL ?? "founder@sinery.local").trim().toLowerCase()
+  const founderTempPassword = process.env.PLATFORM_FOUNDER_TEMP_PASSWORD ?? OWNER_TEMPORARY_PASSWORD
+  const founderPasswordHash = await bcrypt.hash(founderTempPassword, 10)
   await prisma.platformUser.upsert({
-    where: { email: "founder@sinery.local" },
-    // Reset to the demo provisional password on every seed (dev convenience).
+    where: { email: founderEmail },
+    // Reset to the provisional password on every seed (dev convenience).
     update: { passwordHash: founderPasswordHash, temporaryPassword: true, status: "ACTIVE" },
     create: {
       name: "Gabriel Founder",
-      email: "founder@sinery.local",
+      email: founderEmail,
       passwordHash: founderPasswordHash,
       role: "FOUNDER",
       status: "ACTIVE",
@@ -917,7 +923,7 @@ async function main() {
   console.log(`  Usuários: 3 (OWNER, RECEPTIONIST, PROFESSIONAL) — senha provisória Sinery@123`)
   console.log(`  Profissionais: 4, Pacientes: 5, Serviços: 6, Vínculos: 7, Agendamentos: ${appointments.length}`)
   console.log(`  Conversas de teste: 4 + 2 simulações da Assist · Base de conhecimento: 5 itens · WhatsApp: NOT_CONFIGURED`)
-  console.log(`  Founder: founder@sinery.local — senha provisória Sinery@123 (painel /founder)`)
+  console.log(`  Founder: ${founderEmail} — senha provisória (painel /founder)`)
   console.log(`  Planos: 5 · Assinatura: Founder Pilot (ACTIVE) · Faturas: 1 paga + 1 pendente`)
 }
 

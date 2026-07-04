@@ -111,10 +111,23 @@ function has(name: string): boolean {
   return Boolean((process.env[name] ?? "").trim())
 }
 
+/**
+ * Functional environment = source of truth is APP_ENV (or SINERY_ENV), NOT
+ * NODE_ENV. Vercel sets NODE_ENV=production even for staging builds, so it can
+ * never tell staging from production on its own.
+ *   APP_ENV=staging|hml|homolog  → staging rules
+ *   APP_ENV=production|prod       → strict production rules
+ *   APP_ENV=local|development|dev → local rules (even if NODE_ENV=production)
+ *   (unset) → fall back to NODE_ENV, failing safe to production when it is
+ *            "production" (we can't prove staging without APP_ENV).
+ */
 export function resolveAppEnv(): AppEnv {
-  const raw = (process.env.SINERY_ENV ?? process.env.APP_ENV ?? "").trim().toLowerCase()
+  // `||` (not `??`) so an EMPTY SINERY_ENV falls through to APP_ENV instead of
+  // shadowing it — an empty env var must never win over a set one.
+  const raw = (process.env.SINERY_ENV || process.env.APP_ENV || "").trim().toLowerCase()
   if (raw === "staging" || raw === "homolog" || raw === "hml") return "staging"
   if (raw === "production" || raw === "prod") return "production"
+  if (raw === "local" || raw === "development" || raw === "dev") return "local"
   return process.env.NODE_ENV === "production" ? "production" : "local"
 }
 
