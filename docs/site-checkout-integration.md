@@ -4,6 +4,17 @@ O site institucional (repositório separado) só precisa chamar **dois endpoints
 Ele **nunca** recebe `ASAAS_API_KEY` nem `RESEND_API_KEY` — apenas fala com o
 sistema Sinery.
 
+## URLs por ambiente
+
+| Ambiente | Base |
+|---|---|
+| Local | `http://localhost:3000` |
+| Staging | `https://staging.app.sinery.com.br` |
+| Produção | `https://app.sinery.com.br` |
+
+Ex.: `POST https://staging.app.sinery.com.br/api/public/checkout/start` e
+`GET https://staging.app.sinery.com.br/api/public/checkout/{publicId}`.
+
 ## 1. Iniciar assinatura
 
 `POST https://<sistema>/api/public/checkout/start`
@@ -86,8 +97,13 @@ não a recebe.
 ## 5. Segurança
 
 - Chaves (Asaas/Resend) **só no servidor Sinery**; o site nunca as vê.
-- Configure **CORS**: `PUBLIC_CHECKOUT_ALLOWED_ORIGIN=https://sinery.com.br` (o
-  sistema devolve `Access-Control-Allow-Origin` só para essa origem).
+- **CORS + Origin check (implementado):** defina
+  `PUBLIC_CHECKOUT_ALLOWED_ORIGIN=https://sinery.com.br,https://www.sinery.com.br`
+  (aceita lista separada por vírgula). O sistema devolve `Access-Control-Allow-Origin`
+  para essa origem **e** valida o header `Origin`: em staging/produção, requisições
+  de browser com Origin fora da lista recebem **403** (`isCheckoutOriginAllowed`).
+  Chamadas server-to-server (sem header `Origin`) são permitidas. Em dev local, sem
+  lista configurada, só `localhost` passa.
 - Rate limit por e-mail (`PUBLIC_CHECKOUT_RATE_LIMIT_PER_HOUR`).
 
 ## 6. Testar

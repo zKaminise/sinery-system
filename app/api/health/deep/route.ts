@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma"
 import { logger } from "@/lib/logger"
 import { getAiPublicStatus } from "@/lib/ai/config"
 import { getWhatsAppHealth } from "@/lib/whatsapp/whatsapp-health"
+import { getEnvReadiness } from "@/lib/env/env-readiness"
+
+/** Short commit SHA when running on Vercel (safe to expose). */
+function commitSha(): string | null {
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? ""
+  return sha ? sha.slice(0, 7) : null
+}
 
 /**
  * Deeper health check that verifies database connectivity and returns a few
@@ -30,12 +37,24 @@ export async function GET() {
     // external call.
     const ai = getAiPublicStatus()
     const whatsapp = getWhatsAppHealth()
+    // Env readiness — only NAMES + booleans, NEVER secret values (Prompt 23).
+    const readiness = getEnvReadiness()
 
     return NextResponse.json({
       status: "ok",
       database: "ok",
       clinicsCount,
       responseTimeMs,
+      appEnv: readiness.appEnv,
+      commit: commitSha(),
+      readiness: {
+        appEnv: readiness.appEnv,
+        readyForStaging: readiness.readyForStaging,
+        readyForProduction: readiness.readyForProduction,
+        missingRequired: readiness.missingRequired,
+        warnings: readiness.warnings,
+        criticalIssues: readiness.criticalIssues,
+      },
       ai: {
         effectiveMode: ai.effectiveMode,
         hasApiKey: ai.hasApiKey,

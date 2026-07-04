@@ -24,8 +24,10 @@ Guia operacional para levar a V1 do Sinery System a **staging** e depois a um
 
 ## 2. Banco de dados & migrations
 
-**Hoje:** o projeto usa `prisma db push` (dev). **Não existe** `prisma/migrations`
-ainda. `db:push` **não deve** ser usado em produção.
+**Hoje (Prompt 23):** existe `prisma/migrations/0_init` (baseline gerada do schema
+atual) + `migration_lock.toml`. O banco de dev foi baselineado
+(`migrate resolve --applied 0_init`). `db:push` continua **dev-only** — em
+staging/produção use **`db:migrate:deploy`**. Detalhes: [database-staging.md](./database-staging.md).
 
 Scripts disponíveis (`package.json`):
 

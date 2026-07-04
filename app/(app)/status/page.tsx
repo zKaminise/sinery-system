@@ -39,6 +39,16 @@ interface DeepHealth {
   }
   version?: string
   environment?: string
+  appEnv?: string
+  commit?: string | null
+  readiness?: {
+    appEnv: string
+    readyForStaging: boolean
+    readyForProduction: boolean
+    missingRequired: string[]
+    warnings: string[]
+    criticalIssues: string[]
+  }
   timestamp?: string
 }
 
@@ -219,12 +229,42 @@ export default function StatusPage() {
         </p>
       </div>
 
+      {data?.readiness && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Prontidão para deploy</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SystemStatusCard
+              label="Pronto para staging"
+              status={data.readiness.readyForStaging ? "ok" : "warning"}
+              value={data.readiness.readyForStaging ? "Sim" : "Não"}
+              icon={Layers}
+            />
+            <SystemStatusCard
+              label="Pronto para produção"
+              status={data.readiness.readyForProduction ? "ok" : "warning"}
+              value={data.readiness.readyForProduction ? "Sim" : "Não"}
+              icon={ShieldAlert}
+            />
+          </div>
+          {data.readiness.missingRequired.length > 0 && (
+            <p className="mt-2 text-xs text-destructive">
+              Faltando: {data.readiness.missingRequired.join(", ")}
+            </p>
+          )}
+          {data.readiness.criticalIssues.length > 0 && (
+            <ul className="mt-1 list-inside list-disc text-xs text-warning">
+              {data.readiness.criticalIssues.map((c) => <li key={c}>{c}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
         <span>
-          Ambiente: <span className="font-medium text-foreground">{data?.environment ?? "—"}</span>
+          Ambiente: <span className="font-medium text-foreground">{data?.appEnv ?? data?.environment ?? "—"}</span>
         </span>
         <span>
-          Versão: <span className="font-medium text-foreground">{data?.version ?? "—"}</span>
+          Versão: <span className="font-medium text-foreground">{data?.version ?? "—"}{data?.commit ? ` · ${data.commit}` : ""}</span>
         </span>
         <span>
           Última verificação:{" "}

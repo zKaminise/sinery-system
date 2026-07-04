@@ -20,6 +20,13 @@ export const RESERVED_SLUGS = new Set([
   "static",
   "assets",
   "cdn",
+  // Deploy / environment hostnames (Prompt 23) — must never be a clinic slug.
+  "staging",
+  "hml",
+  "homolog",
+  "dev",
+  "checkout",
+  "auth",
 ])
 
 export const SLUG_MIN_LENGTH = 3
