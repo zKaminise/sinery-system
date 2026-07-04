@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
 
 import type { UserRole } from "@/lib/generated/prisma/client"
+import { validateAuthSecret } from "@/lib/auth-secret"
 
 export interface SessionPayload {
   userId: string
@@ -15,10 +16,11 @@ const DEFAULT_MAX_AGE_SECONDS = 604800 // 7 dias
 
 function getAuthSecretKey(): Uint8Array {
   const secret = process.env.AUTH_SECRET
-  if (!secret) {
-    throw new Error(
-      'AUTH_SECRET não está configurado. Copie ".env.example" para ".env" e defina AUTH_SECRET (ex: rode "openssl rand -base64 32" e cole o resultado).'
-    )
+  // In production this also rejects placeholder / too-short secrets so the app
+  // can never sign sessions with a guessable key (session forgery).
+  const check = validateAuthSecret(secret, process.env.NODE_ENV === "production")
+  if (!check.ok) {
+    throw new Error(check.error)
   }
   return new TextEncoder().encode(secret)
 }

@@ -38,6 +38,16 @@ function nextMatchingDate(fromDate: string, allowedDays: number[]): string {
 const OWNER_TEMPORARY_PASSWORD = "Sinery@123"
 
 async function main() {
+  // Safety guard: this seed creates DEMO data (a fake clinic + users with a
+  // known provisional password). Never let it run against a production database
+  // unless explicitly forced with SEED_ALLOW_PRODUCTION=true.
+  if (process.env.NODE_ENV === "production" && process.env.SEED_ALLOW_PRODUCTION !== "true") {
+    console.error(
+      "Seed abortado: NODE_ENV=production. Este seed cria dados de demonstração e não deve rodar em produção. Para forçar (ex: staging), defina SEED_ALLOW_PRODUCTION=true."
+    )
+    process.exit(1)
+  }
+
   // Re-seeding is idempotent: wipe any previous run of this demo tenant.
   // onDelete: Cascade on every child relation removes all related rows.
   await prisma.clinic.deleteMany({ where: { slug: CLINIC_SLUG } })

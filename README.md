@@ -18,6 +18,10 @@ npm run db:seed
 For login, sessions, and the AUTH_SECRET/provisional-password flow, see
 [docs/authentication.md](./docs/authentication.md).
 
+**Going to staging/production?** Start with the
+[V1 release checklist](./docs/v1-release-checklist.md) and the
+[environment variables reference](./docs/environment-variables.md).
+
 Then, run the development server:
 
 ```bash

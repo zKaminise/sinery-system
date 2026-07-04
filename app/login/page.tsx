@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
-import { Stethoscope } from "lucide-react"
 
 import { LoginForm } from "@/components/auth/login-form"
 import { LoginShowcase } from "@/components/auth/login-showcase"
+import { SineryWordmark } from "@/components/brand/sinery-brand"
 
 export const metadata: Metadata = {
   title: "Entrar — Sinery System",
@@ -21,14 +21,11 @@ export default function LoginPage() {
           />
 
           <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col gap-8">
-            <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <Stethoscope className="size-5.5" />
-              </div>
-              <div className="flex flex-col leading-tight">
-                <span className="text-lg font-semibold tracking-tight text-foreground">Sinery</span>
-                <span className="text-xs text-muted-foreground">System — tecnologia para clínicas</span>
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <SineryWordmark priority className="h-10" />
+              <span className="text-xs text-muted-foreground">
+                System — tecnologia para clínicas
+              </span>
             </div>
 
             <div className="flex flex-col gap-1">
