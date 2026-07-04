@@ -11,6 +11,9 @@ import { getWhatsAppWebhookFlags, getEnvPhoneNumberId } from "@/lib/whatsapp/wha
 import { normalizeWhatsAppPhone, phonesMatch, maskPhone } from "@/lib/whatsapp/whatsapp-phone"
 import { applyDeliveryStatus, mapWebhookStatus, type DeliveryStatus } from "@/lib/whatsapp/whatsapp-delivery-status"
 import { parseWhatsAppWebhookPayload } from "@/lib/whatsapp/whatsapp-webhook-parser"
+import { getWhatsAppAssistFlags } from "@/lib/whatsapp/whatsapp-config"
+import { getAiConfig } from "@/lib/ai/config"
+import { processWhatsAppInboundWithAssist } from "@/lib/whatsapp/whatsapp-assist-processor"
 import type {
   NormalizedWhatsAppEvent,
   NormalizedMessageEvent,
@@ -189,14 +192,23 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
     })
   }
 
+  // Whether the Assist should auto-handle this clinic's WhatsApp (Prompt 19).
+  // New/reopened conversations start AI_HANDLING so the Assist can reply; else
+  // WAITING_HUMAN (a human handles it). Existing conversations keep their status.
+  const aiSettings = await prisma.aiSettings.findUnique({ where: { clinicId }, select: { enabled: true } })
+  const autoOn =
+    getWhatsAppAssistFlags().autoProcessAssist && !getAiConfig().globalDisabled && Boolean(integration.enabled) && Boolean(aiSettings?.enabled)
+  const initialStatus = autoOn ? "AI_HANDLING" : "WAITING_HUMAN"
+
   // Find an existing open WhatsApp conversation for this contact.
   const openConversation = await prisma.conversation.findFirst({
     where: { clinicId, channel: "WHATSAPP", externalContactId: normalizedFrom, status: { not: "CLOSED" } },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, patientId: true },
+    select: { id: true, patientId: true, status: true },
   })
 
   let conversationId: string
+  let effectiveStatus: string = openConversation?.status ?? initialStatus
   let reopened = false
   let created = false
 
@@ -216,9 +228,10 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
     if (closed) {
       conversationId = closed.id
       reopened = true
+      effectiveStatus = initialStatus
       await prisma.conversation.update({
         where: { id: conversationId },
-        data: { status: "WAITING_HUMAN", ...(patientId ? { patientId } : {}) },
+        data: { status: initialStatus, ...(patientId ? { patientId } : {}) },
       })
       await prisma.message.create({
         data: {
@@ -231,7 +244,7 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
       })
     } else {
       created = true
-      // WAITING_HUMAN: no real send this prompt, so a human should handle it.
+      effectiveStatus = initialStatus
       const conv = await prisma.conversation.create({
         data: {
           clinicId,
@@ -240,7 +253,7 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
           externalContactId: normalizedFrom,
           contactName: event.contactName ?? null,
           contactPhone: normalizedFrom,
-          status: "WAITING_HUMAN",
+          status: initialStatus,
         },
         select: { id: true },
       })
@@ -249,7 +262,7 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
   }
 
   // The inbound message.
-  await prisma.message.create({
+  const inboundMessage = await prisma.message.create({
     data: {
       clinicId,
       conversationId,
@@ -270,6 +283,7 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
         ...(event.rawTypeMetadata ? { typeMetadata: event.rawTypeMetadata } : {}),
       } as Prisma.InputJsonValue,
     },
+    select: { id: true },
   })
 
   await Promise.all([
@@ -309,6 +323,33 @@ async function processMessageEvent(event: NormalizedMessageEvent): Promise<"proc
       phone: maskPhone(event.fromPhone),
     },
   })
+
+  // Auto-trigger the Sinery Assist (Prompt 19) — synchronous but guarded by a
+  // timeout + try/catch so a slow/failing Assist never breaks the webhook (the
+  // route still returns 200). Only when auto-process is on and the conversation
+  // is AI_HANDLING; the processor re-checks all gates + idempotency.
+  if (autoOn && effectiveStatus === "AI_HANDLING") {
+    const timeoutMs = getWhatsAppAssistFlags().processingTimeoutMs
+    try {
+      await Promise.race([
+        processWhatsAppInboundWithAssist({ clinicId, conversationId, inboundMessageId: inboundMessage.id, trigger: "WEBHOOK_AUTO" }),
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+      ])
+    } catch (error) {
+      logger.error("Falha no auto-processamento da Assist (WhatsApp)", { context: "whatsapp.assist", error, metadata: { clinicId, conversationId } })
+    }
+  } else if (autoOn && (effectiveStatus === "HUMAN_HANDLING" || effectiveStatus === "WAITING_HUMAN")) {
+    // Auto-process is on but a human is handling / it's waiting — the Assist
+    // stays silent. Record it for traceability.
+    await createAuditLog({
+      clinicId,
+      action: effectiveStatus === "HUMAN_HANDLING" ? AuditAction.WHATSAPP_ASSIST_SKIPPED_HUMAN_HANDLING : AuditAction.WHATSAPP_ASSIST_SKIPPED_WAITING_HUMAN,
+      entity: "Conversation",
+      entityId: conversationId,
+      description: "Sinery Assist não respondeu (atendimento humano em andamento).",
+      metadata: { conversationId, status: effectiveStatus },
+    })
+  }
 
   return "processed"
 }

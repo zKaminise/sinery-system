@@ -54,6 +54,8 @@ export async function GET() {
         sendMessagesEnabled: whatsapp.sendMessagesEnabled,
         sendMockMode: whatsapp.sendMockMode,
         require24hWindow: whatsapp.require24hWindow,
+        autoProcessAssist: whatsapp.autoProcessAssist,
+        assistReplyEnabled: whatsapp.assistReplyEnabled,
         webhookEnabled: whatsapp.webhookEnabled,
         verifySignature: whatsapp.verifySignature,
         webhookPath: whatsapp.webhookPath,

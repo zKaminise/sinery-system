@@ -14,7 +14,7 @@ import type { AssistTurn, AiTurnMeta } from "@/lib/assist/types"
 export async function saveInboundPatientMessage(
   clinicId: string,
   conversationId: string,
-  userId: string,
+  userId: string | null,
   text: string
 ): Promise<void> {
   await prisma.message.create({
@@ -40,12 +40,18 @@ export async function saveInboundPatientMessage(
 export async function persistAssistTurn(
   clinicId: string,
   conversationId: string,
-  userId: string,
+  userId: string | null,
   turn: AssistTurn,
-  aiMeta: AiTurnMeta
+  aiMeta: AiTurnMeta,
+  options?: { persistAiReplies?: boolean }
 ): Promise<void> {
+  // WhatsApp flow (Prompt 19): the AI reply is sent as a single OUTBOUND/AI
+  // message by the send-service, so here we skip persisting AI replies (keeping
+  // SYSTEM notes + status + metadata). Default true (simulator behavior).
+  const persistAiReplies = options?.persistAiReplies ?? true
   await prisma.$transaction(async (tx) => {
     for (const reply of turn.replies) {
+      if (!persistAiReplies && reply.senderType === "AI") continue
       await tx.message.create({
         data: {
           clinicId,

@@ -13,6 +13,7 @@ export function LoginForm() {
   const [password, setPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [showReset, setShowReset] = React.useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -69,12 +70,13 @@ export function LoginForm() {
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Senha</Label>
-          <span
-            className="text-xs text-muted-foreground cursor-not-allowed"
-            title="Em breve"
+          <button
+            type="button"
+            onClick={() => setShowReset((v) => !v)}
+            className="text-xs font-medium text-primary hover:underline"
           >
-            Esqueci minha senha (em breve)
-          </span>
+            Esqueci minha senha
+          </button>
         </div>
         <Input
           id="password"
@@ -88,6 +90,15 @@ export function LoginForm() {
           required
         />
       </div>
+
+      {showReset && (
+        <Alert>
+          <AlertDescription>
+            A redefinição é feita pela sua clínica. Peça ao administrador (OWNER/ADMIN) para gerar uma nova senha
+            provisória em Configurações → Usuários — você definirá uma nova senha ao entrar.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Button type="submit" className="mt-2 w-full" size="lg" disabled={loading}>
         {loading ? (

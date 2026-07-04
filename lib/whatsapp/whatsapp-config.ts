@@ -46,6 +46,28 @@ function readEnv() {
     sendTimeoutMs: num(process.env.WHATSAPP_SEND_TIMEOUT_MS, 15000),
     // 24h service window defaults ON (safe). "false" only in dev.
     require24hWindow: (process.env.WHATSAPP_REQUIRE_24H_WINDOW ?? "true").trim().toLowerCase() !== "false",
+    // Assist auto-reply (Prompt 19).
+    assistReplyEnabled: bool(process.env.WHATSAPP_ASSIST_REPLY_ENABLED),
+    assistMockModeAllowed: (process.env.WHATSAPP_ASSIST_MOCK_MODE_ALLOWED ?? "true").trim().toLowerCase() !== "false",
+    assistMaxAutoRepliesPerHour: num(process.env.WHATSAPP_ASSIST_MAX_AUTO_REPLIES_PER_CONVERSATION_PER_HOUR, 20),
+    assistMaxAutoRepliesPerInbound: num(process.env.WHATSAPP_ASSIST_MAX_AUTO_REPLIES_PER_INBOUND, 1),
+    assistProcessingTimeoutMs: num(process.env.WHATSAPP_ASSIST_PROCESSING_TIMEOUT_MS, 20000),
+  }
+}
+
+/** SERVER-ONLY. Assist auto-reply flags (safe booleans/ints, no secrets). */
+export function getWhatsAppAssistFlags() {
+  const env = readEnv()
+  return {
+    autoProcessAssist: env.autoProcessAssist,
+    assistReplyEnabled: env.assistReplyEnabled,
+    assistMockModeAllowed: env.assistMockModeAllowed,
+    sendMessagesEnabled: env.sendMessagesEnabled,
+    sendMockMode: env.sendMockMode,
+    require24hWindow: env.require24hWindow,
+    maxAutoRepliesPerHour: env.assistMaxAutoRepliesPerHour,
+    maxAutoRepliesPerInbound: env.assistMaxAutoRepliesPerInbound,
+    processingTimeoutMs: env.assistProcessingTimeoutMs,
   }
 }
 

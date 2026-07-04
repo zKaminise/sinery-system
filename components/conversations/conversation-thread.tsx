@@ -1,7 +1,10 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, Phone, MessageCircle, Info } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { ArrowLeft, Phone, MessageCircle, Info, Bot, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ConversationStatusBadge } from "@/components/conversations/conversation-status-badge"
@@ -10,6 +13,45 @@ import { MessageBubble } from "@/components/conversations/message-bubble"
 import { MessageComposer } from "@/components/conversations/message-composer"
 import { conversationChannelLabels } from "@/lib/conversations/constants"
 import type { ConversationDetail } from "@/lib/conversations/queries"
+
+const WA_BANNER: Record<string, { label: string; className: string }> = {
+  AI_HANDLING: { label: "Sinery Assist respondendo automaticamente.", className: "bg-secondary/10 text-secondary" },
+  WAITING_HUMAN: { label: "Aguardando um humano assumir.", className: "bg-warning/10 text-warning" },
+  HUMAN_HANDLING: { label: "Em atendimento humano — a Assist não responde.", className: "bg-primary/10 text-primary" },
+  CLOSED: { label: "Conversa encerrada.", className: "bg-muted text-muted-foreground" },
+}
+
+function WhatsAppAssistButton({ conversationId, status }: { conversationId: string; status: string }) {
+  const router = useRouter()
+  const [loading, setLoading] = React.useState(false)
+
+  async function run() {
+    if (status !== "AI_HANDLING" && !confirm("Isso devolverá a conversa para a Sinery Assist e processará a última mensagem. Continuar?")) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/assist-process`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(data?.error?.message ?? "Não foi possível processar.")
+        return
+      }
+      const outcome = data?.data?.outcome
+      toast.success(outcome === "processed" ? "Processado pela Sinery Assist." : outcome === "duplicate" ? "Esta mensagem já foi processada." : "Processamento concluído.")
+      router.refresh()
+    } catch {
+      toast.error("Erro de conexão. Tente novamente.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Button variant="outline" size="sm" onClick={run} disabled={loading}>
+      {loading ? <Loader2 className="size-4 animate-spin" /> : <Bot className="size-4" />}
+      Processar com Sinery Assist
+    </Button>
+  )
+}
 
 interface ConversationThreadProps {
   conversation: ConversationDetail
@@ -56,6 +98,9 @@ export function ConversationThread({
             {conversation.assignedUserName ? ` · ${conversation.assignedUserName}` : ""}
           </p>
         </div>
+        {canManage && conversation.channel === "WHATSAPP" && conversation.status !== "CLOSED" && (
+          <WhatsAppAssistButton conversationId={conversation.id} status={conversation.status} />
+        )}
         {canManage && (
           <ConversationActions
             conversationId={conversation.id}
@@ -65,6 +110,13 @@ export function ConversationThread({
           />
         )}
       </div>
+
+      {/* WhatsApp state banner (Prompt 19). */}
+      {conversation.channel === "WHATSAPP" && WA_BANNER[conversation.status] && (
+        <div className={`flex items-center gap-2 px-4 py-2 text-xs font-medium ${WA_BANNER[conversation.status].className}`}>
+          <Bot className="size-3.5" /> {WA_BANNER[conversation.status].label}
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
@@ -107,6 +159,11 @@ function WhatsAppComposerSlot({ conversation }: { conversation: ConversationDeta
   }
   return (
     <>
+      {conversation.status === "AI_HANDLING" && (
+        <div className="border-t border-border bg-secondary/5 px-4 py-1.5 text-center text-[11px] text-secondary">
+          Ao responder, você assume o atendimento e a Sinery Assist para de responder.
+        </div>
+      )}
       {wa.mockMode && (
         <div className="border-t border-border bg-warning/5 px-4 py-1.5 text-center text-[11px] text-warning">
           Modo mock ativo — mensagens não são enviadas à Meta.

@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Stethoscope } from "lucide-react"
 
 import { LoginForm } from "@/components/auth/login-form"
-import { Card, CardContent } from "@/components/ui/card"
+import { LoginShowcase } from "@/components/auth/login-showcase"
 
 export const metadata: Metadata = {
   title: "Entrar — Sinery System",
@@ -11,47 +11,46 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 -left-24 size-80 rounded-full bg-primary/15 blur-3xl"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-24 -bottom-32 size-96 rounded-full bg-secondary/15 blur-3xl"
-      />
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:grid-cols-2 lg:min-h-[620px]">
+        {/* Left — sign-in form */}
+        <div className="relative flex flex-col justify-center px-6 py-10 sm:px-12">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-24 -left-16 size-64 rounded-full bg-primary/10 blur-3xl"
+          />
 
-      <div className="relative z-10 flex w-full max-w-sm flex-col gap-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Stethoscope className="size-6" />
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-lg font-semibold tracking-tight text-foreground">
-              Sinery
-            </span>
-            <span className="text-xs text-muted-foreground">System</span>
-          </div>
-        </div>
+          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col gap-8">
+            <div className="flex items-center gap-3">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <Stethoscope className="size-5.5" />
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-lg font-semibold tracking-tight text-foreground">Sinery</span>
+                <span className="text-xs text-muted-foreground">System — tecnologia para clínicas</span>
+              </div>
+            </div>
 
-        <Card>
-          <CardContent className="flex flex-col gap-6 py-2">
-            <div className="flex flex-col gap-1 text-center">
-              <h1 className="text-xl font-semibold text-foreground">
-                Acesse sua operação inteligente
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Entre com seu e-mail e senha para continuar.
-              </p>
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Entrar</h1>
+              <p className="text-sm text-muted-foreground">Use seu e-mail e senha para acessar sua operação.</p>
             </div>
 
             <LoginForm />
-          </CardContent>
-        </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Sinery © {new Date().getFullYear()} — Tecnologia para clínicas
-        </p>
+            <p className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Primeiro acesso?</span> Use a senha provisória fornecida pela
+              sua clínica — você definirá uma nova logo após entrar.
+            </p>
+          </div>
+
+          <p className="relative z-10 mt-8 text-center text-xs text-muted-foreground">
+            Sinery © {new Date().getFullYear()}
+          </p>
+        </div>
+
+        {/* Right — product showcase (hidden on small screens) */}
+        <LoginShowcase />
       </div>
     </div>
   )

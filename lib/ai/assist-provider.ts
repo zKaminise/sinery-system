@@ -28,8 +28,13 @@ export type AssistProviderMode = "RULE_BASED" | "OPENAI"
 export interface AssistProviderInput {
   clinicId: string
   conversationId: string
-  userId: string
+  /** May be null for automated (WhatsApp) processing with no acting user. */
+  userId: string | null
   message: string
+  /** WhatsApp flow: the inbound was already saved by the webhook. */
+  skipSaveInbound?: boolean
+  /** WhatsApp flow: the AI reply is sent as a WhatsApp message, not persisted here. */
+  persistAiReplies?: boolean
 }
 
 export interface AssistProviderResult {
@@ -102,12 +107,20 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
   const { clinicId, conversationId, userId, message } = input
   const cfg = getAiConfig()
   const baseMode: AssistProviderMode = cfg.useRealAi ? "OPENAI" : "RULE_BASED"
+  const persistOpts = { persistAiReplies: input.persistAiReplies ?? true }
 
-  await saveInboundPatientMessage(clinicId, conversationId, userId, message)
+  if (!input.skipSaveInbound) {
+    await saveInboundPatientMessage(clinicId, conversationId, userId, message)
+  }
+
+  // Persists a turn honoring the per-call persistAiReplies option (WhatsApp
+  // sends the AI reply as a real message, so it isn't persisted here).
+  const persist = (turn: AssistTurn, meta: AiTurnMeta) =>
+    persistAssistTurn(clinicId, conversationId, userId, turn, meta, persistOpts)
 
   // Finalizes a short-circuit safety turn (persist + shape the result).
   const shortCircuit = async (turn: AssistTurn, meta: AiTurnMeta): Promise<AssistProviderResult> => {
-    await persistAssistTurn(clinicId, conversationId, userId, turn, meta)
+    await persist(turn, meta)
     return toResult(meta.mode, turn, meta.intent ?? "UNKNOWN", meta.confidence ?? 1, [])
   }
 
@@ -170,7 +183,7 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
   if (!ruleCtx) {
     // Conversation vanished mid-flight — transfer safely.
     const turn = transferTurn(conversationId, GENERIC_FALLBACK, "UNKNOWN", "context_unavailable")
-    await persistAssistTurn(clinicId, conversationId, userId, turn, { mode: "RULE_BASED", fallbackReason: "context_unavailable" })
+    await persist(turn, { mode: "RULE_BASED", fallbackReason: "context_unavailable" })
     return toResult("RULE_BASED", turn, "UNKNOWN", 0, [])
   }
 
@@ -227,7 +240,7 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
     const mode: AssistProviderMode = cfg.useRealAi ? "OPENAI" : "RULE_BASED"
     const intent = detectIntent(message)
     const aiMeta: AiTurnMeta = { mode, intent, confidence: 1 }
-    await persistAssistTurn(clinicId, conversationId, userId, turn, aiMeta)
+    await persist(turn, aiMeta)
     // Always record a usage row (rate limits count rule turns too).
     await recordAiUsage({ clinicId, conversationId, provider: "RULE_BASED", mode, success: true })
     if (!cfg.useRealAi) {
@@ -248,7 +261,7 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
   if (await isDailyTokenLimitExceeded(clinicId, cfg.dailyTokenLimit)) {
     const turn = await runAssistTurn(ruleCtx)
     const aiMeta: AiTurnMeta = { mode: "RULE_BASED", intent: detectIntent(message), confidence: 1, fallbackReason: "daily_token_limit" }
-    await persistAssistTurn(clinicId, conversationId, userId, turn, aiMeta)
+    await persist(turn, aiMeta)
     await createAuditLog({
       clinicId,
       userId,
@@ -265,7 +278,7 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
   const aiCtx = await buildAiAssistContext(clinicId, conversationId, cfg.maxHistoryMessages)
   if (!aiCtx) {
     const turn = transferTurn(conversationId, GENERIC_FALLBACK, "UNKNOWN", "context_unavailable")
-    await persistAssistTurn(clinicId, conversationId, userId, turn, { mode: "OPENAI", fallbackReason: "context_unavailable" })
+    await persist(turn, { mode: "OPENAI", fallbackReason: "context_unavailable" })
     return toResult("OPENAI", turn, "UNKNOWN", 0, [])
   }
 
@@ -334,7 +347,7 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
     })
     logAiError("assist ai provider failed", { clinicId, conversationId, mode: "OPENAI", model: cfg.model, error })
     const turn = transferTurn(conversationId, GENERIC_FALLBACK, "UNKNOWN", "provider_error")
-    await persistAssistTurn(clinicId, conversationId, userId, turn, { mode: "OPENAI", fallbackReason: "provider_error" })
+    await persist(turn, { mode: "OPENAI", fallbackReason: "provider_error" })
     return toResult("OPENAI", turn, "UNKNOWN", 0, [])
   }
 
@@ -353,7 +366,7 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
       metadata: { conversationId },
     })
     const turn = transferTurn(conversationId, GENERIC_FALLBACK, "UNKNOWN", "invalid_output")
-    await persistAssistTurn(clinicId, conversationId, userId, turn, { mode: "OPENAI", fallbackReason: "invalid_output" })
+    await persist(turn, { mode: "OPENAI", fallbackReason: "invalid_output" })
     return toResult("OPENAI", turn, "UNKNOWN", 0, [])
   }
 
@@ -412,6 +425,6 @@ export async function processAssistMessage(input: AssistProviderInput): Promise<
     lastTool,
     fallbackReason,
   }
-  await persistAssistTurn(clinicId, conversationId, userId, turn, aiMeta)
+  await persist(turn, aiMeta)
   return toResult("OPENAI", turn, output.intent, output.confidence, toolExecutions)
 }

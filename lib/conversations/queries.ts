@@ -6,7 +6,7 @@ import {
   clinicToday,
   getWeekRangeUtc,
 } from "@/lib/appointments/date-utils"
-import { getWhatsAppSendFlags } from "@/lib/whatsapp/whatsapp-config"
+import { getWhatsAppSendFlags, getWhatsAppAssistFlags } from "@/lib/whatsapp/whatsapp-config"
 import { canSendFreeFormWhatsApp } from "@/lib/whatsapp/whatsapp-service-window"
 import type {
   ConversationStatus,
@@ -40,6 +40,8 @@ export interface ConversationMessageItem {
   content: string
   senderName: string | null
   deliveryStatus: MessageDeliveryStatus | null
+  /** For inbound patient messages: Assist processing outcome (Prompt 19). */
+  assistRunStatus: string | null
   createdAt: string
 }
 
@@ -48,6 +50,8 @@ export interface WhatsAppSendState {
   mockMode: boolean
   require24hWindow: boolean
   withinWindow: boolean
+  autoProcess: boolean
+  replyEnabled: boolean
 }
 
 export interface ConversationDetail {
@@ -244,14 +248,22 @@ export async function getConversationDetail(
 
   // WhatsApp send state (only for WHATSAPP conversations).
   let whatsApp: WhatsAppSendState | null = null
+  let runByInbound = new Map<string, string>()
   if (conv.channel === "WHATSAPP") {
     const flags = getWhatsAppSendFlags()
-    const withinWindow = await canSendFreeFormWhatsApp(clinicId, conv.id, flags.require24hWindow)
+    const assistFlags = getWhatsAppAssistFlags()
+    const [withinWindow, runs] = await Promise.all([
+      canSendFreeFormWhatsApp(clinicId, conv.id, flags.require24hWindow),
+      prisma.assistProcessingRun.findMany({ where: { conversationId: conv.id }, select: { inboundMessageId: true, status: true } }),
+    ])
+    runByInbound = new Map(runs.map((r) => [r.inboundMessageId, r.status]))
     whatsApp = {
       sendEnabled: flags.sendMessagesEnabled,
       mockMode: flags.sendMockMode,
       require24hWindow: flags.require24hWindow,
       withinWindow,
+      autoProcess: assistFlags.autoProcessAssist,
+      replyEnabled: assistFlags.assistReplyEnabled,
     }
   }
 
@@ -278,6 +290,7 @@ export async function getConversationDetail(
         content: m.content,
         senderName: meta?.userName ?? null,
         deliveryStatus: m.deliveryStatus ?? null,
+        assistRunStatus: m.direction === "INBOUND" && m.senderType === "PATIENT" ? runByInbound.get(m.id) ?? null : null,
         createdAt: m.createdAt.toISOString(),
       }
     }),

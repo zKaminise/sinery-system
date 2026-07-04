@@ -5,10 +5,11 @@ import { Prisma } from "@/lib/generated/prisma/client"
 import { createAuditLog } from "@/lib/audit"
 import { AuditAction } from "@/lib/audit-actions"
 import { logger } from "@/lib/logger"
-import { getWhatsAppSendFlags } from "@/lib/whatsapp/whatsapp-config"
+import { getWhatsAppSendFlags, getWhatsAppAssistFlags } from "@/lib/whatsapp/whatsapp-config"
 import { maskPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp/whatsapp-phone"
-import { getLastInboundWhatsAppMessageAt } from "@/lib/whatsapp/whatsapp-service-window"
+import { getLastInboundWhatsAppMessageAt, canSendFreeFormWhatsApp } from "@/lib/whatsapp/whatsapp-service-window"
 import { isWithinWhatsAppServiceWindow, WHATSAPP_SERVICE_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/whatsapp-window"
+import { assistReplyTarget } from "@/lib/whatsapp/whatsapp-assist-decisions"
 import { sendWhatsAppText } from "@/lib/whatsapp/whatsapp-send-client"
 import { WHATSAPP_SEND_FRIENDLY_ERROR } from "@/lib/whatsapp/whatsapp-send-response"
 
@@ -250,4 +251,161 @@ export async function sendWhatsAppTextMessage(input: SendWhatsAppInput): Promise
     metadata: { clinicId, conversationId, errorCode: result.errorCode },
   })
   return { ok: false, code: "send_failed", httpStatus: 502, message: WHATSAPP_SEND_FRIENDLY_ERROR }
+}
+
+export interface AssistReplyInput {
+  clinicId: string
+  conversationId: string
+  reply: string
+  inboundMessageId: string
+  processingRunId: string
+  trigger: string
+  assistMode: string
+  intent?: string
+  confidence?: number
+}
+
+export interface AssistReplyResult {
+  messageId: string
+  deliveryStatus: "SENT" | "MOCK_SENT" | "INTERNAL_ONLY" | "FAILED"
+  sent: boolean
+}
+
+/**
+ * Sends (or internally saves) a Sinery Assist reply on a WhatsApp conversation.
+ * senderType = AI, NO human auto-assume. Honors WHATSAPP_ASSIST_REPLY_ENABLED
+ * (disabled → INTERNAL_ONLY), send-enabled, mock mode, and the 24h window
+ * (expired → INTERNAL_ONLY). The AI reply is persisted here as the single
+ * OUTBOUND/AI message (the provider does not persist it). Never throws the
+ * caller's flow — returns a status.
+ */
+export async function sendWhatsAppAssistReply(input: AssistReplyInput): Promise<AssistReplyResult> {
+  const flags = getWhatsAppSendFlags()
+  const assist = getWhatsAppAssistFlags()
+
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: input.conversationId, clinicId: input.clinicId },
+    select: { id: true, channel: true, status: true, contactPhone: true, externalContactId: true },
+  })
+  const integration = await prisma.whatsAppIntegration.findUnique({
+    where: { clinicId: input.clinicId },
+    select: { id: true, enabled: true, phoneNumberId: true },
+  })
+
+  const toPhone = normalizeWhatsAppPhone(conversation?.contactPhone ?? conversation?.externalContactId)
+  const withinWindow = await canSendFreeFormWhatsApp(input.clinicId, input.conversationId, flags.require24hWindow)
+
+  // Compute the send target. Missing integration/phone/token forces INTERNAL_ONLY.
+  const canReallySend =
+    Boolean(conversation) &&
+    conversation!.channel === "WHATSAPP" &&
+    conversation!.status !== "CLOSED" &&
+    Boolean(integration?.enabled) &&
+    Boolean(integration?.phoneNumberId) &&
+    Boolean(toPhone) &&
+    (flags.sendMockMode || flags.hasAccessToken)
+  let target = assistReplyTarget({
+    replyEnabled: assist.assistReplyEnabled,
+    sendEnabled: flags.sendMessagesEnabled,
+    mockMode: flags.sendMockMode,
+    withinWindow,
+  })
+  if (!canReallySend) target = "INTERNAL_ONLY"
+
+  const toPhoneMasked = maskPhone(toPhone)
+  const metadata = {
+    source: "SINERY_ASSIST",
+    trigger: input.trigger,
+    inboundMessageId: input.inboundMessageId,
+    processingRunId: input.processingRunId,
+    assistMode: input.assistMode,
+    intent: input.intent ?? null,
+    confidence: input.confidence ?? null,
+    toPhoneMasked,
+  }
+
+  // Create the AI reply message as PENDING.
+  const message = await prisma.message.create({
+    data: {
+      clinicId: input.clinicId,
+      conversationId: input.conversationId,
+      direction: "OUTBOUND",
+      senderType: "AI",
+      content: input.reply,
+      externalChannel: "WHATSAPP",
+      deliveryStatus: "PENDING",
+      metadata: metadata as Prisma.InputJsonValue,
+    },
+    select: { id: true },
+  })
+
+  const finish = async (status: AssistReplyResult["deliveryStatus"], extra: Record<string, unknown> = {}) => {
+    await prisma.message.update({
+      where: { id: message.id },
+      data: {
+        deliveryStatus: status,
+        ...(status === "SENT" || status === "MOCK_SENT" ? { sentAt: new Date() } : {}),
+        ...(status === "FAILED" ? { failedAt: new Date() } : {}),
+        ...(extra.externalMessageId ? { externalMessageId: extra.externalMessageId as string } : {}),
+        ...(extra.errorCode ? { deliveryErrorCode: extra.errorCode as string } : {}),
+      },
+    })
+    await prisma.assistProcessingRun.update({ where: { id: input.processingRunId }, data: { outboundMessageId: message.id } }).catch(() => {})
+    if (status === "SENT" || status === "MOCK_SENT") {
+      await prisma.whatsAppIntegration.update({ where: { clinicId: input.clinicId }, data: { lastMessageSentAt: new Date() } }).catch(() => {})
+    }
+  }
+
+  if (target === "INTERNAL_ONLY") {
+    await finish("INTERNAL_ONLY")
+    await createAuditLog({
+      clinicId: input.clinicId,
+      action: AuditAction.WHATSAPP_ASSIST_REPLY_INTERNAL_ONLY,
+      entity: "Message",
+      entityId: message.id,
+      description: "Resposta da Assist gerada internamente — não enviada ao WhatsApp.",
+      metadata: { conversationId: input.conversationId, messageId: message.id, processingRunId: input.processingRunId, reason: withinWindow ? "reply_or_send_disabled" : "service_window" },
+    })
+    return { messageId: message.id, deliveryStatus: "INTERNAL_ONLY", sent: false }
+  }
+
+  if (target === "MOCK") {
+    const externalMessageId = `mock_wamid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    await finish("MOCK_SENT", { externalMessageId })
+    await createAuditLog({
+      clinicId: input.clinicId,
+      action: AuditAction.WHATSAPP_ASSIST_REPLY_SENT,
+      entity: "Message",
+      entityId: message.id,
+      description: "Resposta da Assist enviada (mock).",
+      metadata: { conversationId: input.conversationId, messageId: message.id, processingRunId: input.processingRunId, deliveryStatus: "MOCK_SENT", mock: true, toPhoneMasked },
+    })
+    return { messageId: message.id, deliveryStatus: "MOCK_SENT", sent: true }
+  }
+
+  // Real send.
+  const result = await sendWhatsAppText({ phoneNumberId: integration!.phoneNumberId!, toPhone, text: input.reply, timeoutMs: flags.sendTimeoutMs })
+  if (result.ok && result.whatsappMessageId) {
+    await finish("SENT", { externalMessageId: result.whatsappMessageId })
+    await createAuditLog({
+      clinicId: input.clinicId,
+      action: AuditAction.WHATSAPP_ASSIST_REPLY_SENT,
+      entity: "Message",
+      entityId: message.id,
+      description: "Resposta da Assist enviada pelo WhatsApp.",
+      metadata: { conversationId: input.conversationId, messageId: message.id, processingRunId: input.processingRunId, externalMessageId: result.whatsappMessageId, deliveryStatus: "SENT", toPhoneMasked },
+    })
+    return { messageId: message.id, deliveryStatus: "SENT", sent: true }
+  }
+
+  await finish("FAILED", { errorCode: result.errorCode ?? "graph_api_error" })
+  await createAuditLog({
+    clinicId: input.clinicId,
+    action: AuditAction.WHATSAPP_ASSIST_REPLY_FAILED,
+    entity: "Message",
+    entityId: message.id,
+    description: "Falha ao enviar a resposta da Assist pelo WhatsApp.",
+    metadata: { conversationId: input.conversationId, messageId: message.id, processingRunId: input.processingRunId, errorCode: result.errorCode ?? "graph_api_error", toPhoneMasked },
+  })
+  return { messageId: message.id, deliveryStatus: "FAILED", sent: false }
 }

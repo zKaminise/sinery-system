@@ -414,6 +414,26 @@ export function WhatsAppIntegrationPanel({
               </span>
             </div>
           </div>
+          <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Auto-processar Assist</span>
+              <EnabledNo value={integration.assist.autoProcess} />
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Resposta da Assist no WhatsApp</span>
+              <EnabledNo value={integration.assist.replyEnabled} />
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Respostas automáticas hoje</span>
+              <span className="font-medium text-foreground">{integration.assist.autoRepliesToday}</span>
+            </div>
+          </div>
+          {integration.assist.autoProcess && (
+            <p className="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
+              Para evitar respostas automáticas em produção, mantenha WHATSAPP_AUTO_PROCESS_ASSIST=false até concluir os
+              testes.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Este módulo envia apenas mensagens de texto dentro da janela de atendimento. Templates serão implementados
             depois.

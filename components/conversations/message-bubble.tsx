@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles, Clock, Check, CheckCheck, CircleX, FlaskConical } from "lucide-react"
+import { Sparkles, Clock, Check, CheckCheck, CircleX, FlaskConical, EyeOff, Bot } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { formatInboxDateTime } from "@/components/conversations/format"
@@ -19,6 +19,26 @@ const DELIVERY: Record<string, { label: string; icon: React.ComponentType<{ clas
   READ: { label: "Lida", icon: CheckCheck, className: "text-secondary" },
   FAILED: { label: "Falhou", icon: CircleX, className: "text-destructive" },
   MOCK_SENT: { label: "Mock — não enviado à Meta", icon: FlaskConical, className: "text-warning" },
+  INTERNAL_ONLY: { label: "Gerada internamente — não enviada ao WhatsApp", icon: EyeOff, className: "text-warning" },
+}
+
+const ASSIST_RUN: Record<string, { label: string; className: string }> = {
+  SENT: { label: "Processada pela Sinery Assist", className: "text-success" },
+  INTERNAL_ONLY: { label: "Processada (resposta interna)", className: "text-warning" },
+  TRANSFERRED_TO_HUMAN: { label: "Processada — transferida para humano", className: "text-warning" },
+  FAILED: { label: "Falhou ao processar", className: "text-destructive" },
+  SKIPPED: { label: "Ignorada", className: "text-muted-foreground" },
+  RUNNING: { label: "Processando...", className: "text-muted-foreground" },
+}
+
+function AssistRunBadge({ status }: { status: string }) {
+  const cfg = ASSIST_RUN[status]
+  if (!cfg) return null
+  return (
+    <span className={`flex items-center gap-1 px-1 text-[11px] ${cfg.className}`}>
+      <Bot className="size-3" /> {cfg.label}
+    </span>
+  )
 }
 
 function DeliveryStatus({ status }: { status: string }) {
@@ -78,6 +98,7 @@ export function MessageBubble({ message, timeZone }: MessageBubbleProps) {
           {formatInboxDateTime(message.createdAt, timeZone)}
         </span>
         {!isInbound && message.deliveryStatus && <DeliveryStatus status={message.deliveryStatus} />}
+        {isInbound && message.assistRunStatus && <AssistRunBadge status={message.assistRunStatus} />}
       </div>
     </div>
   )

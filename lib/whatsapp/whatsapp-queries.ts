@@ -9,6 +9,7 @@ import {
   validateWhatsAppEnv,
   getWhatsAppWebhookFlags,
   getWhatsAppSendFlags,
+  getWhatsAppAssistFlags,
 } from "@/lib/whatsapp/whatsapp-config"
 import { statusMessage, type WhatsAppSafeConfig, type WhatsAppIntegrationStatus } from "@/lib/whatsapp/whatsapp-validate"
 import { maskWhatsAppId } from "@/lib/whatsapp/whatsapp-mask"
@@ -55,6 +56,12 @@ export interface WhatsAppIntegrationView {
     sentToday: number
     failedToday: number
   }
+  /** Assist auto-reply status (Prompt 19). */
+  assist: {
+    autoProcess: boolean
+    replyEnabled: boolean
+    autoRepliesToday: number
+  }
 }
 
 /** Ensures a row exists for the clinic (idempotent) and returns the raw record. */
@@ -78,10 +85,12 @@ function toView(
   warnings: string[],
   recentEventsCount = 0,
   sentToday = 0,
-  failedToday = 0
+  failedToday = 0,
+  autoRepliesToday = 0
 ): WhatsAppIntegrationView {
   const webhookFlags = getWhatsAppWebhookFlags()
   const sendFlags = getWhatsAppSendFlags()
+  const assistFlags = getWhatsAppAssistFlags()
   return {
     webhook: {
       enabled: webhookFlags.webhookEnabled,
@@ -99,6 +108,11 @@ function toView(
       lastMessageSentAt: row.lastMessageSentAt ? row.lastMessageSentAt.toISOString() : null,
       sentToday,
       failedToday,
+    },
+    assist: {
+      autoProcess: assistFlags.autoProcessAssist,
+      replyEnabled: assistFlags.assistReplyEnabled,
+      autoRepliesToday,
     },
     id: row.id,
     enabled: row.enabled,
@@ -130,7 +144,7 @@ export async function getWhatsAppIntegration(clinicId: string): Promise<WhatsApp
   const validation = validateWhatsAppEnv()
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
-  const [recentEventsCount, sentToday, failedToday] = await Promise.all([
+  const [recentEventsCount, sentToday, failedToday, autoRepliesToday] = await Promise.all([
     prisma.whatsAppWebhookEvent.count({ where: { clinicId } }),
     prisma.message.count({
       where: { clinicId, externalChannel: "WHATSAPP", direction: "OUTBOUND", deliveryStatus: { in: ["SENT", "DELIVERED", "READ", "MOCK_SENT"] }, createdAt: { gte: startOfDay } },
@@ -138,11 +152,14 @@ export async function getWhatsAppIntegration(clinicId: string): Promise<WhatsApp
     prisma.message.count({
       where: { clinicId, externalChannel: "WHATSAPP", direction: "OUTBOUND", deliveryStatus: "FAILED", createdAt: { gte: startOfDay } },
     }),
+    prisma.assistProcessingRun.count({
+      where: { clinicId, createdAt: { gte: startOfDay }, status: { in: ["SENT", "INTERNAL_ONLY", "TRANSFERRED_TO_HUMAN"] } },
+    }),
   ])
   // Live status combines env config with the clinic's `enabled` toggle: if the
   // clinic turned it off, it's DISABLED regardless of env.
   const liveStatus = !row.enabled && validation.status !== "NOT_CONFIGURED" ? "DISABLED" : validation.status
-  return toView(row, liveStatus, env, validation.issues, validation.warnings, recentEventsCount, sentToday, failedToday)
+  return toView(row, liveStatus, env, validation.issues, validation.warnings, recentEventsCount, sentToday, failedToday, autoRepliesToday)
 }
 
 /** Updates the editable fields (enabled/displayPhoneNumber/verifiedName). */
