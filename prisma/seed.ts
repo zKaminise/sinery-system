@@ -866,6 +866,51 @@ async function main() {
     ],
   })
 
+  // --- Email logs + checkout sessions (Prompt 22, idempotent) ---------------
+  await prisma.emailLog.deleteMany({ where: { toEmail: { in: ["admin@sorriaodonto.com.br", "novocliente@exemplo.com.br"] } } })
+  await prisma.emailLog.createMany({
+    data: [
+      { clinicId: clinic.id, toEmail: "admin@sorriaodonto.com.br", fromEmail: "Sinery <no-reply@sinery.com.br>", replyToEmail: "kaminise@sinery.com.br", subject: "Seu acesso ao Sinery System foi criado", type: "OWNER_WELCOME_FOUNDER", status: "MOCKED", provider: "MOCK", sentAt: new Date() },
+      { toEmail: "novocliente@exemplo.com.br", fromEmail: "Sinery <no-reply@sinery.com.br>", replyToEmail: "kaminise@sinery.com.br", subject: "Seu código de recuperação — Sinery", type: "PASSWORD_RESET_CODE", status: "MOCKED", provider: "MOCK", sentAt: new Date() },
+    ],
+  })
+
+  await prisma.checkoutSession.deleteMany({ where: { publicId: { in: ["seedawaiting01", "seedprovisioned1"] } } })
+  await prisma.checkoutSession.create({
+    data: {
+      publicId: "seedawaiting01",
+      planId: founderPilot?.id,
+      status: "AWAITING_PAYMENT",
+      clinicName: "Clínica Demo Checkout",
+      desiredSlug: "clinica-demo-checkout",
+      ownerName: "Responsável Demo",
+      ownerEmail: "demo-checkout@exemplo.com.br",
+      amountInCents: 19700,
+      billingInterval: "MONTHLY",
+      externalProvider: "ASAAS",
+      externalSubscriptionId: "mock_sub_seed01",
+      externalPaymentUrl: "http://localhost:3000/checkout-mock/seed01",
+      expiresAt: new Date(seedNow.getTime() + 7 * 86_400_000),
+    },
+  })
+  await prisma.checkoutSession.create({
+    data: {
+      publicId: "seedprovisioned1",
+      planId: founderPilot?.id,
+      clinicId: clinic.id,
+      status: "PROVISIONED",
+      clinicName: clinic.name,
+      desiredSlug: clinic.slug,
+      ownerName: "Gabriel Admin",
+      ownerEmail: "admin@sorriaodonto.com.br",
+      amountInCents: 19700,
+      billingInterval: "MONTHLY",
+      externalProvider: "ASAAS",
+      externalSubscriptionId: "mock_sub_seed02",
+      paidAt: seedNow,
+    },
+  })
+
   console.log("Seed concluído:")
   console.log(`  Clínica: ${clinic.name} (${clinic.slug})`)
   console.log(`  Usuário owner: ${owner.email}`)

@@ -26,6 +26,7 @@ interface SuccessData {
   subscriptionStatus: string
   nextDueDate: string | null
   planName: string | null
+  emailStatus?: string
 }
 
 const SUBSCRIPTION_TYPE_OPTIONS: { value: string; label: string }[] = [
@@ -79,7 +80,12 @@ export function CreateClinicForm({ plans }: { plans: PlanOption[] }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Alert>
-            A senha provisória é exibida <strong>uma única vez</strong>. Copie e envie ao responsável agora.
+            A senha provisória é exibida <strong>uma única vez</strong>.{" "}
+            {success.emailStatus === "SENT"
+              ? "Um e-mail de boas-vindas foi enviado ao responsável."
+              : success.emailStatus === "MOCKED"
+                ? "E-mail em modo mock (não enviado) — copie e envie manualmente."
+                : "Copie e envie ao responsável agora."}
           </Alert>
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <Field label="Clínica" value={success.clinicName} />

@@ -107,14 +107,48 @@ Com tudo vazio a integração fica "não configurada" e o app roda normalmente.
 | `SEED_ALLOW_PRODUCTION` | ⚪ | Necessária para `db:seed` rodar com `NODE_ENV=production` (o seed cria dados de demonstração e por padrão se recusa a rodar em produção). Use só em staging com dados de demo. |
 | `NODE_ENV` | (auto) | `production` ativa: cookie `secure`, HSTS, guard do `AUTH_SECRET` e guard do seed. |
 
-## 7. Futuras (ainda NÃO usadas no código)
+## 7. E-mail transacional (Resend) — Prompt 22
 
-Documentadas para planejamento — **não** existem no código da V1:
+| Variável | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `RESEND_API_KEY` | ⚪ 🔒 | vazio | Chave Resend. **Server-only.** Vazio → mock. |
+| `RESEND_FROM_EMAIL` | ⚪ | `Sinery <no-reply@sinery.com.br>` | Remetente (via Resend; não precisa ser caixa real). |
+| `RESEND_REPLY_TO_EMAIL` | ⚪ | `kaminise@sinery.com.br` | Reply-to (e-mail real). |
+| `RESEND_CONTACT_TO_EMAIL` | ⚪ | `kaminise@sinery.com.br` | Destino do form de contato (futuro). |
+| `EMAIL_MOCK_MODE` | ⚪ | `true` | `true` não envia (EmailLog MOCKED). `false` envia. |
+
+## 8. Recuperação de senha — Prompt 22
+
+| Variável | Tipo | Padrão |
+|---|---|---|
+| `PASSWORD_RESET_TOKEN_TTL_MINUTES` | ⚪ | `10` |
+| `PASSWORD_RESET_MAX_ATTEMPTS` | ⚪ | `5` |
+| `PASSWORD_RESET_CODE_LENGTH` | ⚪ | `6` |
+| `PASSWORD_RESET_RESEND_COOLDOWN_SECONDS` | ⚪ | `60` |
+
+## 9. Pagamento (Asaas) + checkout público — Prompt 22
+
+| Variável | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `ASAAS_ENABLED` | ⚪ | `false` | Liga a integração. |
+| `ASAAS_MOCK_MODE` | ⚪ | `true` | `true` simula (sem chamar o Asaas). |
+| `ASAAS_ENVIRONMENT` | ⚪ | `sandbox` | `sandbox` \| `production`. |
+| `ASAAS_API_KEY` | ⚪ 🔒 | vazio | Chave Asaas. **Server-only.** |
+| `ASAAS_BASE_URL_SANDBOX` / `ASAAS_BASE_URL_PRODUCTION` | ⚪ | urls padrão | Base URLs. |
+| `ASAAS_WEBHOOK_TOKEN` | ⚪ 🔒 | vazio | Validado no header `asaas-access-token`. **≠ da API key.** |
+| `ASAAS_CHECKOUT_SUCCESS_URL` / `ASAAS_CHECKOUT_CANCEL_URL` | ⚪ | vazio | URLs de retorno (futuro). |
+| `PUBLIC_CHECKOUT_ENABLED` | ⚪ | `false` | Liga o endpoint público de checkout. |
+| `PUBLIC_CHECKOUT_ALLOWED_ORIGIN` | ⚪ | vazio | Origin CORS do site (ex.: `https://sinery.com.br`). |
+| `PUBLIC_CHECKOUT_RATE_LIMIT_PER_HOUR` | ⚪ | `20` | Rate limit por e-mail. |
+
+> Real só quando: e-mail `EMAIL_MOCK_MODE=false` + `RESEND_API_KEY`; Asaas
+> `ASAAS_ENABLED=true` + `ASAAS_MOCK_MODE=false` + `ASAAS_API_KEY`.
+
+## 10. Futuras (ainda NÃO usadas no código)
 
 | Variável | Para |
 |---|---|
-| `RESEND_API_KEY` 🔒 | E-mail transacional (futuro). |
-| `ASAAS_API_KEY` 🔒 | Sinery Pay / pagamentos (futuro). |
+| (nenhuma pendente) | Nota fiscal / cupons / cobrança por uso — não modelados. |
 
 ---
 

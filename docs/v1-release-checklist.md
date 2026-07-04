@@ -102,6 +102,22 @@ Checklist:
 - [ ] Rate limits e `ASSIST_DAILY_TOKEN_LIMIT` revisados
 - [ ] Mensagens sensíveis → transferência humana (validado)
 
+## 6.1 E-mail (Resend) + pagamento (Asaas) — Prompt 22
+
+- [ ] **Resend:** domínio `sinery.com.br` verificado (SPF/DKIM); `RESEND_API_KEY`
+      real; `EMAIL_MOCK_MODE=false` só quando quiser enviar de verdade. From
+      `no-reply@sinery.com.br`, reply-to `kaminise@sinery.com.br`.
+- [ ] Recuperação de senha testada (código 6 dígitos, 10 min, uso único).
+- [ ] **Asaas:** começar em sandbox (`ASAAS_ENVIRONMENT=sandbox`,
+      `ASAAS_MOCK_MODE=false`, chave sandbox). Só ir para `production` após validar.
+- [ ] `ASAAS_WEBHOOK_TOKEN` definido (≠ da API key) e webhook cadastrado no painel
+      Asaas apontando para `/api/webhooks/asaas`.
+- [ ] `PUBLIC_CHECKOUT_ENABLED=true` + `PUBLIC_CHECKOUT_ALLOWED_ORIGIN` = domínio do
+      site, só quando o site estiver pronto.
+- [ ] Confirmado: clínica só é criada **após pagamento confirmado**; webhook
+      idempotente (pagamento 2x não duplica clínica).
+- [ ] Chaves (Resend/Asaas) **só no servidor** — nunca em `NEXT_PUBLIC_*`/logs/bundle.
+
 ## 7. Observabilidade / logs
 
 - [ ] `SENTRY_DSN` configurado (recomendado em staging/prod)

@@ -23,5 +23,5 @@ export async function POST(request: Request) {
 
   const result = await createClinicWithOwner(parsed.data, auth.user.id)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
-  return NextResponse.json({ success: true, data: result.data }, { status: 201 })
+  return NextResponse.json({ success: true, data: { ...result.data, emailStatus: result.emailStatus } }, { status: 201 })
 }

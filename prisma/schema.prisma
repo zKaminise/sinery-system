@@ -156,6 +156,10 @@ model Clinic {
   billingEvents        BillingEvent[]
   billingNotifications BillingNotificationLog[]
 
+  // Email + checkout (Prompt 22).
+  emailLogs        EmailLog[]
+  checkoutSessions CheckoutSession[]
+
   @@index([status])
 }
 
@@ -205,6 +209,8 @@ model User {
   createdAppointments   Appointment[]  @relation("AppointmentCreatedByUser")
   assignedConversations Conversation[] @relation("ConversationAssignedUser")
   auditLogs             AuditLog[]
+  emailLogs             EmailLog[]
+  passwordResetTokens   PasswordResetToken[]
 
   @@unique([clinicId, email])
 }
@@ -653,6 +659,9 @@ model PlatformUser {
   lastLoginAt       DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  emailLogs           EmailLog[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 enum PlatformRole {
@@ -694,7 +703,8 @@ model Plan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  subscriptions ClinicSubscription[]
+  subscriptions    ClinicSubscription[]
+  checkoutSessions CheckoutSession[]
 }
 
 enum BillingInterval {
@@ -910,4 +920,197 @@ model PlatformAuditLog {
   @@index([action])
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Transactional email + password reset (Prompt 22)
+// ---------------------------------------------------------------------------
+
+/// One row per transactional email attempt (Resend or mock). Never stores the
+/// email body's sensitive parts (codes/passwords) — only subject + safe metadata.
+model EmailLog {
+  id String @id @default(cuid())
+
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  platformUserId String?
+  platformUser   PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: SetNull)
+
+  toEmail      String
+  fromEmail    String
+  replyToEmail String?
+  subject      String
+  type         EmailType
+  status       EmailStatus @default(PENDING)
+
+  provider          EmailProvider @default(RESEND)
+  providerMessageId String?
+  errorMessage      String?
+  metadata          Json?
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  failedAt  DateTime?
+
+  @@index([clinicId])
+  @@index([userId])
+  @@index([platformUserId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum EmailType {
+  PASSWORD_RESET_CODE
+  OWNER_WELCOME_FOUNDER
+  OWNER_WELCOME_CHECKOUT
+  TEMPORARY_PASSWORD_RESET
+  BILLING_PAYMENT_CONFIRMED
+  BILLING_PAYMENT_OVERDUE
+  CHECKOUT_PAYMENT_PENDING
+  CONTACT_FORM
+}
+
+enum EmailStatus {
+  PENDING
+  MOCKED
+  SENT
+  FAILED
+}
+
+enum EmailProvider {
+  RESEND
+  MOCK
+}
+
+/// A password reset request. The 6-digit code is stored ONLY as a hash. Single
+/// use, expiring, with an attempt limit. Works for clinic Users and PlatformUsers.
+model PasswordResetToken {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platformUserId String?
+  platformUser   PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  email     String
+  tokenHash String
+
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  attempts    Int @default(0)
+  maxAttempts Int @default(5)
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([userId])
+  @@index([platformUserId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Public checkout / onboarding (Asaas) — Prompt 22
+// ---------------------------------------------------------------------------
+
+/// A self-service checkout started by the marketing site. The Clinic is only
+/// created AFTER payment is confirmed (via the Asaas webhook). The desired slug
+/// is reserved while AWAITING_PAYMENT.
+model CheckoutSession {
+  id       String @id @default(cuid())
+  publicId String @unique
+
+  planId String?
+  plan   Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  status CheckoutSessionStatus @default(PENDING)
+
+  clinicName      String
+  desiredSlug     String
+  ownerName       String
+  ownerEmail      String
+  ownerPhone      String?
+  companyDocument String?
+  city            String?
+  state           String?
+
+  amountInCents   Int
+  currency        String          @default("BRL")
+  billingInterval BillingInterval
+
+  externalProvider       String?
+  externalCustomerId     String?
+  externalSubscriptionId String?
+  externalPaymentId      String?
+  externalPaymentUrl     String?
+
+  paidAt    DateTime?
+  expiresAt DateTime?
+
+  errorMessage String?
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([ownerEmail])
+  @@index([desiredSlug])
+  @@index([externalProvider])
+  @@index([externalSubscriptionId])
+  @@index([externalPaymentId])
+}
+
+enum CheckoutSessionStatus {
+  PENDING
+  AWAITING_PAYMENT
+  PAID
+  PROVISIONING
+  PROVISIONED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+/// Idempotency + audit for payment-provider webhooks (Asaas). `payloadHash`
+/// unique guarantees a re-delivered event is never processed twice.
+model PaymentProviderEvent {
+  id String @id @default(cuid())
+
+  provider               String
+  eventType              String
+  externalEventId        String?
+  externalPaymentId      String?
+  externalSubscriptionId String?
+  checkoutSessionId      String?
+  clinicId               String?
+
+  payloadHash String  @unique
+  processed   Boolean @default(false)
+  ignored     Boolean @default(false)
+
+  errorCode    String?
+  errorMessage String?
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([provider])
+  @@index([eventType])
+  @@index([externalPaymentId])
+  @@index([externalSubscriptionId])
+  @@index([checkoutSessionId])
+  @@index([clinicId])
 }

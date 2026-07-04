@@ -9,6 +9,9 @@ export const AuditAction = {
   AUTH_LOGIN_FAILED: "AUTH_LOGIN_FAILED",
   AUTH_LOGOUT: "AUTH_LOGOUT",
   AUTH_PASSWORD_CHANGED: "AUTH_PASSWORD_CHANGED",
+  AUTH_PASSWORD_RESET_REQUESTED: "AUTH_PASSWORD_RESET_REQUESTED",
+  AUTH_PASSWORD_RESET_COMPLETED: "AUTH_PASSWORD_RESET_COMPLETED",
+  AUTH_PASSWORD_RESET_FAILED: "AUTH_PASSWORD_RESET_FAILED",
 
   // System / observability
   SYSTEM_HEALTH_CHECK: "SYSTEM_HEALTH_CHECK",
@@ -196,6 +199,9 @@ export const auditActionLabels: Record<string, string> = {
   AUTH_LOGIN_FAILED: "Falha no login",
   AUTH_LOGOUT: "Logout",
   AUTH_PASSWORD_CHANGED: "Senha alterada",
+  AUTH_PASSWORD_RESET_REQUESTED: "Recuperação de senha solicitada",
+  AUTH_PASSWORD_RESET_COMPLETED: "Senha redefinida",
+  AUTH_PASSWORD_RESET_FAILED: "Falha na redefinição de senha",
   SYSTEM_HEALTH_CHECK: "Verificação de saúde",
   SYSTEM_DEEP_HEALTH_CHECK: "Verificação profunda",
   AUDIT_LOG_VIEWED: "Auditoria consultada",

@@ -26,6 +26,12 @@ For login, sessions, and the AUTH_SECRET/provisional-password flow, see
 [docs/founder-admin.md](./docs/founder-admin.md) — the internal `/founder` area to
 create clinics, plans, subscriptions, invoices and suspensions manually.
 
+**Email, password reset & automatic onboarding?** See
+[docs/email-resend.md](./docs/email-resend.md),
+[docs/password-reset.md](./docs/password-reset.md),
+[docs/asaas-integration.md](./docs/asaas-integration.md) and — for the marketing
+site — the [checkout API contract](./docs/site-checkout-integration.md).
+
 Then, run the development server:
 
 ```bash

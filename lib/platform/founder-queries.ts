@@ -263,3 +263,45 @@ export async function getBillingOverview() {
     })),
   }
 }
+
+// --- checkouts + emails (Prompt 22) ----------------------------------------
+
+export async function listCheckoutSessions() {
+  const rows = await prisma.checkoutSession.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: { plan: { select: { name: true } }, clinic: { select: { slug: true } } },
+  })
+  return rows.map((s) => ({
+    id: s.id,
+    publicId: s.publicId,
+    clinicName: s.clinicName,
+    desiredSlug: s.desiredSlug,
+    ownerEmail: s.ownerEmail,
+    planName: s.plan?.name ?? null,
+    status: s.status,
+    amountInCents: s.amountInCents,
+    paymentUrl: s.externalPaymentUrl,
+    externalSubscriptionId: s.externalSubscriptionId,
+    createdAt: s.createdAt.toISOString().slice(0, 10),
+    paidAt: s.paidAt ? s.paidAt.toISOString().slice(0, 10) : null,
+    clinicCreated: Boolean(s.clinicId),
+  }))
+}
+
+export async function listEmailLogs(filters: { status?: string; type?: string } = {}) {
+  const where: Record<string, unknown> = {}
+  if (filters.status) where.status = filters.status
+  if (filters.type) where.type = filters.type
+  const rows = await prisma.emailLog.findMany({ where, orderBy: { createdAt: "desc" }, take: 60 })
+  return rows.map((e) => ({
+    id: e.id,
+    toEmail: e.toEmail,
+    subject: e.subject,
+    type: e.type,
+    status: e.status,
+    provider: e.provider,
+    createdAt: e.createdAt.toISOString().slice(0, 16).replace("T", " "),
+    errorMessage: e.errorMessage,
+  }))
+}

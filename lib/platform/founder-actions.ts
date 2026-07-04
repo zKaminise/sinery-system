@@ -2,11 +2,17 @@ import "server-only"
 
 import { prisma } from "@/lib/prisma"
 import { hashPassword, generateProvisionalPassword } from "@/lib/password"
-import { slugify, validateSlug } from "@/lib/platform/slug"
+import { slugify } from "@/lib/platform/slug"
 import { evaluateSubscriptionStatus } from "@/lib/billing/subscription-status"
 import { createPlatformAuditLog, PlatformAuditAction } from "@/lib/platform/platform-audit"
+import { provisionClinic, clinicAppUrl } from "@/lib/platform/clinic-provisioning"
+import { sendTransactionalEmail } from "@/lib/email/email-service"
+import { ownerWelcomeFounderEmail, temporaryPasswordResetEmail } from "@/lib/email/email-templates"
 import type { CreateClinicInput, CreateInvoiceInput, InvoiceActionInput, PlanInput, SubscriptionTypeValue } from "@/lib/validators/founder"
 import type { Prisma } from "@/lib/generated/prisma/client"
+
+// Re-exported so existing importers (founder pages/components) keep working.
+export { clinicAppUrl }
 
 // --- helpers ---------------------------------------------------------------
 
@@ -25,13 +31,6 @@ function addMonths(date: Date, months: number): Date {
 
 function reaisToCents(reais: number): number {
   return Math.round((reais || 0) * 100)
-}
-
-/** Informational tenant URL for the success screen. */
-export function clinicAppUrl(slug: string): string {
-  const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "").trim()
-  if (root && !root.includes("localhost")) return `https://${slug}.app.${root}`
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 }
 
 interface MappedCommercial {
@@ -80,168 +79,117 @@ export interface CreateClinicResult {
 export async function createClinicWithOwner(
   input: CreateClinicInput,
   platformUserId: string
-): Promise<CreateClinicResult> {
-  const slug = slugify(input.slug)
-  const slugCheck = validateSlug(slug)
-  if (!slugCheck.ok) return { ok: false, error: slugCheck.error }
-
-  const existing = await prisma.clinic.findUnique({ where: { slug }, select: { id: true } })
-  if (existing) return { ok: false, error: `Já existe uma clínica com o slug "${slug}".` }
-
+): Promise<CreateClinicResult & { emailStatus?: string }> {
   const commercial = mapSubscriptionType(input.subscriptionType)
   const now = new Date()
   const start = parseDateOrNull(input.startDate) ?? now
   const trialEnd =
-    input.subscriptionType === "trial"
-      ? new Date(start.getTime() + input.trialDays * 86_400_000)
-      : null
-  const nextDueDate =
-    commercial.status === "FREE" || commercial.status === "EXEMPT"
-      ? null
-      : parseDateOrNull(input.nextDueDate) ??
-        (input.subscriptionType === "trial" ? trialEnd : addMonths(start, input.subscriptionType === "yearly" ? 12 : 1))
+    input.subscriptionType === "trial" ? new Date(start.getTime() + input.trialDays * 86_400_000) : null
+  const isFreeish = commercial.status === "FREE" || commercial.status === "EXEMPT"
+  const nextDueDate = isFreeish
+    ? null
+    : parseDateOrNull(input.nextDueDate) ??
+      (input.subscriptionType === "trial" ? trialEnd : addMonths(start, input.subscriptionType === "yearly" ? 12 : 1))
+  const amountInCents = isFreeish ? 0 : reaisToCents(input.amountInReais)
 
-  const amountInCents =
-    commercial.status === "FREE" || commercial.status === "EXEMPT" ? 0 : reaisToCents(input.amountInReais)
+  // Delegate to the shared provisioning service (same path as checkout).
+  const result = await provisionClinic({
+    source: "FOUNDER_MANUAL",
+    clinicName: input.name,
+    slug: input.slug,
+    segment: input.segment,
+    clinicEmail: input.email,
+    phone: input.phone,
+    whatsapp: input.whatsapp,
+    city: input.city,
+    state: input.state,
+    ownerName: input.ownerName,
+    ownerEmail: input.ownerEmail,
+    ownerPassword: input.ownerPassword,
+    planId: input.planId ?? null,
+    subscription: {
+      status: commercial.status,
+      billingType: commercial.billingType,
+      paymentMethod: "MANUAL",
+      amountInCents,
+      trialEndsAt: trialEnd,
+      currentPeriodStart: start,
+      nextDueDate,
+      graceDays: input.graceDays,
+      internalNotes: input.internalNotes,
+      freeReason: input.subscriptionType === "founder_deal" ? "Founder deal" : undefined,
+    },
+    firstInvoice: amountInCents > 0 && nextDueDate ? { amountInCents, dueDate: nextDueDate, status: "PENDING", paymentMethod: "MANUAL" } : null,
+    platformUserId,
+  })
 
-  const plainPassword = input.ownerPassword ?? generateProvisionalPassword()
-  const passwordHash = await hashPassword(plainPassword)
+  if (!result.ok || !result.data) return { ok: false, error: result.error }
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const clinic = await tx.clinic.create({
-        data: {
-          name: input.name,
-          slug,
-          segment: input.segment,
-          email: input.email,
-          phone: input.phone,
-          whatsapp: input.whatsapp,
-          city: input.city,
-          state: input.state,
-          status: "ACTIVE",
-        },
-      })
+  // Welcome email (real or MOCKED). Never blocks creation.
+  const d = result.data
+  const tpl = ownerWelcomeFounderEmail({ ownerName: d.ownerName, clinicName: d.clinicName, url: d.url, loginEmail: d.ownerEmail, provisionalPassword: d.provisionalPassword })
+  const email = await sendTransactionalEmail({
+    to: d.ownerEmail,
+    subject: tpl.subject,
+    html: tpl.html,
+    text: tpl.text,
+    type: "OWNER_WELCOME_FOUNDER",
+    clinicId: d.clinicId,
+    userId: d.ownerId,
+    platformUserId,
+    metadata: { source: "founder" },
+  })
 
-      await tx.clinicSettings.create({ data: { clinicId: clinic.id } })
-      await tx.aiSettings.create({ data: { clinicId: clinic.id } })
-      await tx.whatsAppIntegration.create({ data: { clinicId: clinic.id, webhookPath: "/api/webhooks/whatsapp" } })
-
-      const owner = await tx.user.create({
-        data: {
-          clinicId: clinic.id,
-          name: input.ownerName,
-          email: input.ownerEmail.trim().toLowerCase(),
-          passwordHash,
-          role: "OWNER",
-          status: "ACTIVE",
-          temporaryPassword: true,
-        },
-      })
-
-      const subscription = await tx.clinicSubscription.create({
-        data: {
-          clinicId: clinic.id,
-          planId: input.planId ?? null,
-          status: commercial.status,
-          billingType: commercial.billingType,
-          paymentMethod: "MANUAL",
-          amountInCents,
-          currency: "BRL",
-          trialEndsAt: trialEnd,
-          currentPeriodStart: start,
-          nextDueDate,
-          graceDays: input.graceDays,
-          internalNotes: input.internalNotes,
-          freeReason: input.subscriptionType === "founder_deal" ? "Founder deal" : undefined,
-        },
-      })
-
-      let invoice = null
-      const isPaidPlan = amountInCents > 0 && nextDueDate
-      if (isPaidPlan) {
-        invoice = await tx.billingInvoice.create({
-          data: {
-            clinicId: clinic.id,
-            subscriptionId: subscription.id,
-            status: "PENDING",
-            paymentMethod: "MANUAL",
-            amountInCents,
-            currency: "BRL",
-            dueDate: nextDueDate!,
-            internalNotes: "Fatura inicial criada na criação da clínica.",
-          },
-        })
-      }
-
-      await tx.billingEvent.create({
-        data: {
-          clinicId: clinic.id,
-          subscriptionId: subscription.id,
-          invoiceId: invoice?.id,
-          type: "CLINIC_CREATED",
-          message: `Clínica criada com plano ${input.subscriptionType}.`,
-          createdByPlatformUserId: platformUserId,
-        },
-      })
-
-      return { clinic, owner, subscription, invoice }
-    })
-
-    // Audits (outside tx — never block creation).
-    await createPlatformAuditLog({
-      platformUserId,
-      action: PlatformAuditAction.CLINIC_CREATED,
-      targetType: "Clinic",
-      targetId: result.clinic.id,
-      metadata: { slug, subscriptionType: input.subscriptionType },
-    })
-    await createPlatformAuditLog({
-      platformUserId,
-      action: PlatformAuditAction.OWNER_CREATED,
-      targetType: "User",
-      targetId: result.owner.id,
-      metadata: { clinicId: result.clinic.id },
-    })
-    await createPlatformAuditLog({
-      platformUserId,
-      action: PlatformAuditAction.SUBSCRIPTION_CREATED,
-      targetType: "ClinicSubscription",
-      targetId: result.subscription.id,
-      metadata: { clinicId: result.clinic.id, status: commercial.status },
-    })
-    if (result.invoice) {
-      await createPlatformAuditLog({
-        platformUserId,
-        action: PlatformAuditAction.INVOICE_CREATED,
-        targetType: "BillingInvoice",
-        targetId: result.invoice.id,
-        metadata: { clinicId: result.clinic.id, amountInCents },
-      })
-    }
-
-    const plan = input.planId
-      ? await prisma.plan.findUnique({ where: { id: input.planId }, select: { name: true } })
-      : null
-
-    return {
-      ok: true,
-      data: {
-        clinicId: result.clinic.id,
-        slug,
-        url: clinicAppUrl(slug),
-        ownerEmail: result.owner.email,
-        provisionalPassword: plainPassword,
-        clinicName: result.clinic.name,
-        subscriptionStatus: commercial.status,
-        nextDueDate: nextDueDate ? nextDueDate.toISOString().slice(0, 10) : null,
-        planName: plan?.name ?? null,
-      },
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao criar a clínica."
-    return { ok: false, error: message.includes("Unique") ? "Slug ou e-mail já em uso." : "Não foi possível criar a clínica." }
+  return {
+    ok: true,
+    emailStatus: email.status,
+    data: {
+      clinicId: d.clinicId,
+      slug: d.slug,
+      url: d.url,
+      ownerEmail: d.ownerEmail,
+      provisionalPassword: d.provisionalPassword,
+      clinicName: d.clinicName,
+      subscriptionStatus: d.subscriptionStatus,
+      nextDueDate: d.nextDueDate,
+      planName: d.planName,
+    },
   }
+}
+
+/**
+ * Re-sends access to a clinic OWNER: generates a NEW provisional password
+ * (never reuses the old one), forces a change on next login, and emails it.
+ */
+export async function resendClinicOwnerAccess(
+  clinicId: string,
+  platformUserId: string
+): Promise<{ ok: boolean; error?: string; emailStatus?: string }> {
+  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true, slug: true } })
+  if (!clinic) return { ok: false, error: "Clínica não encontrada." }
+  const owner = await prisma.user.findFirst({ where: { clinicId, role: "OWNER" }, orderBy: { createdAt: "asc" } })
+  if (!owner) return { ok: false, error: "Esta clínica não tem um OWNER." }
+
+  const newPassword = generateProvisionalPassword()
+  const passwordHash = await hashPassword(newPassword)
+  await prisma.user.update({ where: { id: owner.id }, data: { passwordHash, temporaryPassword: true, passwordChangedAt: null } })
+
+  const url = clinicAppUrl(clinic.slug)
+  const tpl = temporaryPasswordResetEmail({ ownerName: owner.name, clinicName: clinic.name, url, loginEmail: owner.email, provisionalPassword: newPassword })
+  const email = await sendTransactionalEmail({
+    to: owner.email,
+    subject: tpl.subject,
+    html: tpl.html,
+    text: tpl.text,
+    type: "TEMPORARY_PASSWORD_RESET",
+    clinicId,
+    userId: owner.id,
+    platformUserId,
+    metadata: { source: "founder_resend" },
+  })
+
+  await createPlatformAuditLog({ platformUserId, action: PlatformAuditAction.OWNER_CREATED, targetType: "User", targetId: owner.id, metadata: { clinicId, action: "resend_access" } })
+  return { ok: true, emailStatus: email.status }
 }
 
 // --- status actions (suspend / reactivate / recalculate) -------------------

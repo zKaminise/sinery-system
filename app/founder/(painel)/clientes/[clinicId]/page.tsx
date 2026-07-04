@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FounderBadge } from "@/components/founder/founder-badge"
 import { ClinicRowActions } from "@/components/founder/clinic-row-actions"
 import { ClinicBillingPanel } from "@/components/founder/clinic-billing-panel"
+import { ResendAccessButton } from "@/components/founder/resend-access-button"
 
 export const metadata = { title: "Cliente — Sinery Founder" }
 
@@ -104,7 +105,10 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ c
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-base">Responsáveis</CardTitle></CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2">
+            <CardTitle className="text-base">Responsáveis</CardTitle>
+            <ResendAccessButton clinicId={clinic.id} />
+          </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {owners.length === 0 && <p className="text-sm text-muted-foreground">Nenhum.</p>}
             {owners.map((o) => (

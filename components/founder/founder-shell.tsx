@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Building2, Package, Wallet, LogOut, Menu, X } from "lucide-react"
+import { LayoutDashboard, Building2, Package, Wallet, ShoppingCart, Mail, LogOut, Menu, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -21,8 +21,10 @@ interface FounderNavItem {
 const NAV: FounderNavItem[] = [
   { title: "Visão geral", href: "/founder", icon: LayoutDashboard },
   { title: "Clientes", href: "/founder/clientes", icon: Building2 },
+  { title: "Checkouts", href: "/founder/checkouts", icon: ShoppingCart, show: canManageBilling },
   { title: "Planos", href: "/founder/planos", icon: Package, show: canManagePlans },
   { title: "Financeiro", href: "/founder/billing", icon: Wallet, show: canManageBilling },
+  { title: "E-mails", href: "/founder/emails", icon: Mail },
 ]
 
 export function FounderShell({
