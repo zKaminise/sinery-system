@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server"
 
 import { decryptSession, getSessionCookieName } from "@/lib/session"
 import { decryptPlatformSession, getPlatformCookieName } from "@/lib/platform/platform-session"
+import { resolveHostTenant, appBaseUrl } from "@/lib/tenant/tenant-url"
+import { evaluateFounderHostAccess } from "@/lib/tenant/tenant-security"
 
 // Starting with Next.js 16, "Middleware" is called "Proxy" — this file
 // replaces what used to be middleware.ts. See node_modules/next/dist/docs.
@@ -40,10 +42,19 @@ function isProtectedPath(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const hostTenant = resolveHostTenant(
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+  )
+
   // Founder / platform area — uses a SEPARATE cookie from the clinic session.
   // A clinic user (clinic cookie only) never passes this, and a platform user
   // never reaches the clinic area (they lack a clinic cookie).
   if (pathname === "/founder" || pathname.startsWith("/founder/")) {
+    // The Founder area is ROOT-only. On a clinic subdomain, bounce back to the
+    // root app host so the platform admin is never served from a clinic domain.
+    if (evaluateFounderHostAccess(hostTenant.kind).action === "redirect_root") {
+      return NextResponse.redirect(new URL("/founder/login", appBaseUrl()))
+    }
     const platformToken = request.cookies.get(getPlatformCookieName())?.value
     const platformSession = await decryptPlatformSession(platformToken)
     if (pathname === "/founder/login") {

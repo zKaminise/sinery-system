@@ -69,16 +69,26 @@ Cria (entre outros dados) o usuário owner da Clínica Sorria Odonto:
    se o usuário segue para o dashboard ou é redirecionado para
    `/alterar-senha` (ver seção 4).
 
-### Por que a busca de login não é isolada por clínica
+### Isolamento de login por clínica (subdomínio) — Prompt 27
 
-O formulário de login pede apenas e-mail/senha, sem seletor de clínica ou
-subdomínio. Por isso, `lib/auth.ts` busca o usuário por e-mail globalmente
-(`prisma.user.findFirst({ where: { email } })`), embora o schema garanta
-unicidade apenas por `clinicId + email` (de propósito, pensando em clínicas
-parceiras — ver `docs/setup-database.md`). Isso é uma limitação conhecida
-deste MVP: com um único tenant seedado não há ambiguidade, mas antes de abrir
-cadastro para múltiplas clínicas com e-mails repetidos, o login precisa
-ganhar um passo de seleção de tenant (por subdomínio ou campo explícito).
+O tenant vem do **host**, não do formulário. `lib/auth.ts` resolve a clínica pelo
+host (`resolveHostTenant`) e, quando o host é um **subdomínio de clínica**
+(`{slug}.hml.app.<root>` / `{slug}.app.<root>`), a busca é **escopada** ao
+`clinicId` daquela clínica (`findFirst({ where: { email, clinicId } })`). Assim
+um usuário da **clínica A** não loga no subdomínio da **clínica B** mesmo com a
+senha certa — o e-mail não pertence a um membro da B, e o erro é genérico
+("E-mail ou senha inválidos, ou endereço da clínica incorreto"), sem revelar se
+usuário/clínica existem. O schema garante unicidade por `clinicId + email` (de
+propósito, para clínicas parceiras — ver `docs/setup-database.md`).
+
+Na **raiz** (`hml.app.sinery.com.br` / `app.sinery.com.br`) o host não é uma
+clínica, então a busca cai no comportamento por e-mail apenas — usado só quando
+`TENANT_SUBDOMAIN_ENFORCED=false` (transição, antes do wildcard). Com a flag
+`true` em staging/produção, o login de clínica na raiz é **bloqueado** (tela
+"acesse pelo endereço da sua clínica"). A sessão passa a carregar também o `slug`
+da clínica, e o layout autenticado valida, a cada request, que a clínica do
+usuário bate com a clínica do host — divergência gera `TENANT_SESSION_MISMATCH` e
+encerra a sessão. Detalhes e checklist: [domains-and-dns.md](./domains-and-dns.md#segurança-multi-tenant-por-subdomínio-prompt-27).
 
 ## 4. Troca obrigatória de senha no primeiro acesso
 

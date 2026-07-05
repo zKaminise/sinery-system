@@ -9,6 +9,14 @@ export interface SessionPayload {
   userId: string
   clinicId: string
   role: UserRole
+  /**
+   * The clinic's slug (subdomain) at login time. Optional so older cookies
+   * (issued before multi-tenant subdomains) stay valid. Used for fast
+   * host↔session tenant binding; the authoritative binding check still
+   * compares against the clinic's slug in the database. See
+   * lib/tenant/tenant-security.ts and docs/domains-and-dns.md.
+   */
+  slug?: string
 }
 
 const DEFAULT_COOKIE_NAME = "sinery_session"
@@ -65,6 +73,7 @@ export async function decryptSession(
       userId: payload.userId,
       clinicId: payload.clinicId,
       role: payload.role as UserRole,
+      slug: typeof payload.slug === "string" ? payload.slug : undefined,
     }
   } catch {
     return null

@@ -202,6 +202,10 @@ export const AuditAction = {
   EVOLUTION_CONFIG_CHECKED: "EVOLUTION_CONFIG_CHECKED",
   EVOLUTION_ACCESS_DENIED: "EVOLUTION_ACCESS_DENIED",
 
+  // Multi-tenant subdomain security (Prompt 27)
+  TENANT_SESSION_MISMATCH: "TENANT_SESSION_MISMATCH",
+  TENANT_LOGIN_BLOCKED_AT_ROOT: "TENANT_LOGIN_BLOCKED_AT_ROOT",
+
   // Other domain events (used in seed samples)
   CLINIC_CREATED: "CLINIC_CREATED",
   USER_CREATED: "USER_CREATED",
@@ -367,6 +371,8 @@ export const auditActionLabels: Record<string, string> = {
   EVOLUTION_ASSIST_REPLY_FAILED: "Falha ao enviar resposta da Assist (Evolution)",
   EVOLUTION_CONFIG_CHECKED: "Configuração Evolution verificada",
   EVOLUTION_ACCESS_DENIED: "Acesso negado (Evolution)",
+  TENANT_SESSION_MISMATCH: "Sessão não corresponde à clínica do endereço",
+  TENANT_LOGIN_BLOCKED_AT_ROOT: "Login de clínica bloqueado no domínio raiz",
   CLINIC_CREATED: "Clínica criada",
   USER_CREATED: "Usuário criado",
 }
@@ -414,7 +420,8 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "EVOLUTION_WEBHOOK_INVALID_SECRET" ||
     action === "EVOLUTION_MESSAGE_SEND_FAILED" ||
     action === "EVOLUTION_ASSIST_REPLY_FAILED" ||
-    action === "EVOLUTION_ACCESS_DENIED"
+    action === "EVOLUTION_ACCESS_DENIED" ||
+    action === "TENANT_SESSION_MISMATCH"
   ) {
     return "danger"
   }
@@ -458,7 +465,8 @@ export function getAuditActionTone(action: string): "danger" | "warning" | "succ
     action === "WHATSAPP_ASSIST_REPLY_INTERNAL_ONLY" ||
     action === "EVOLUTION_WEBHOOK_EVENT_IGNORED" ||
     action === "EVOLUTION_MESSAGE_DUPLICATE_IGNORED" ||
-    action === "EVOLUTION_MESSAGE_SEND_BLOCKED"
+    action === "EVOLUTION_MESSAGE_SEND_BLOCKED" ||
+    action === "TENANT_LOGIN_BLOCKED_AT_ROOT"
   ) {
     return "warning"
   }

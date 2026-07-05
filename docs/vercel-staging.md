@@ -32,6 +32,28 @@ usando o mesmo GitHub repo com envs/bancos separados por projeto.
 - `app.sinery.com.br` — produção (projeto Vercel de PRD).
 - `{slug}.app.sinery.com.br` — tenants (subdomínio da clínica).
 
+#### Wildcard de clínica (Prompt 27)
+
+Cada projeto precisa de **dois** domínios: a raiz **e** o wildcard.
+
+| Projeto | Domínios a adicionar na Vercel | DNS |
+|---|---|---|
+| **HML** | `hml.app.sinery.com.br` **+** `*.hml.app.sinery.com.br` | CNAME `*.hml.app` → Vercel |
+| **PRD** | `app.sinery.com.br` **+** `*.app.sinery.com.br` | CNAME `*.app` → Vercel |
+
+- Adicionar o **wildcard** faz a Vercel emitir um certificado TLS que cobre
+  qualquer `{slug}` — **não** é preciso criar um domínio/DNS por clínica. Criar
+  clínica no Founder **não** cria DNS; o wildcard resolve todos os slugs e o
+  código resolve o slug pelo host.
+- **HML já está com o wildcard `*.hml.app.sinery.com.br` validado/funcional na Vercel**
+  → no projeto **HML** defina `TENANT_SUBDOMAIN_ENFORCED=true` (login de clínica só
+  no subdomínio; a raiz mostra a tela "acesse pelo endereço da sua clínica"). Em
+  **PRD**, ligue para `true` só depois de validar `*.app.sinery.com.br` (senão
+  mantenha `false` transitoriamente). Passo a passo (9 passos) em
+  [domains-and-dns.md](./domains-and-dns.md#checklist-de-wildcard-9-passos).
+- **Não** remova registros de e-mail (MX/SPF/DKIM/DMARC do Resend) nem do provedor
+  de DNS (ex.: Umbler) ao adicionar o wildcard — é aditivo.
+
 ### Build & Install
 - **Install Command:** `npm install`
 - **Build Command:** `npm run build`
@@ -75,8 +97,11 @@ Opções:
 > que valida só a sua máquina).
 
 Mínimo por ambiente: `APP_ENV`, `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_APP_URL`,
-`APP_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `DEFAULT_TENANT_SLUG`, + Sentry + (quando reais)
-Resend/Asaas/WhatsApp/OpenAI.
+`APP_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `DEFAULT_TENANT_SLUG`, `TENANT_SUBDOMAIN_ENFORCED`,
++ Sentry + (quando reais) Resend/Asaas/WhatsApp/OpenAI.
+
+> `TENANT_SUBDOMAIN_ENFORCED` (Prompt 27): **HML = `true`** (wildcard já validado);
+> PRD = `true` após validar `*.app.sinery.com.br`. Ver [domains-and-dns.md](./domains-and-dns.md#segurança-multi-tenant-por-subdomínio-prompt-27).
 
 ### Seed
 - **Produção:** NÃO rodar seed (é bloqueado por `NODE_ENV=production`).

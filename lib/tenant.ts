@@ -3,14 +3,26 @@ import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUserClinic } from "@/lib/current-user"
 import { isDynamicServerUsageError } from "@/lib/utils"
+import { resolveHostTenant } from "@/lib/tenant/tenant-url"
+import { resolveAppEnv } from "@/lib/env/env-readiness"
+import { shouldUseDefaultTenant } from "@/lib/tenant/tenant-security"
 import type { Clinic } from "@/lib/generated/prisma/client"
 
 /**
- * Slug used to resolve the current clinic when no subdomain/auth-based
- * tenant resolution is available yet (i.e. everywhere in this prompt).
+ * Fallback slug used to resolve "the current clinic" when there is no logged-in
+ * user. DEFAULT_TENANT_SLUG is a LOCAL/DEV convenience ONLY (Prompt 27): in
+ * staging/production the root domain must never silently resolve to a default
+ * clinic — an unauthenticated request there simply has no clinic (returns null).
  */
-export function getDefaultTenantSlug(): string {
+export function getDefaultTenantSlug(): string | null {
+  if (!shouldUseDefaultTenant(resolveAppEnv())) return null
   return process.env.DEFAULT_TENANT_SLUG || "sorria-odonto"
+}
+
+/** Host → clinic slug for the unauthenticated fallback (null at the root/app host). */
+function slugFromHost(host: string | null | undefined): string | null {
+  const resolved = resolveHostTenant(host)
+  return resolved.kind === "clinic" && resolved.slug ? resolved.slug : null
 }
 
 export async function getClinicBySlug(slug: string): Promise<Clinic | null> {
@@ -60,7 +72,8 @@ export async function getCurrentClinic(): Promise<Clinic | null> {
 
   const headersList = await headers()
   const host = headersList.get("host")
-  const slug = extractSubdomainFromHost(host) ?? getDefaultTenantSlug()
+  const slug = slugFromHost(host) ?? getDefaultTenantSlug()
+  if (!slug) return null
 
   return getClinicBySlug(slug)
 }
@@ -87,7 +100,8 @@ export async function getCurrentClinicSafe(): Promise<{
 
   const headersList = await headers()
   const host = headersList.get("host")
-  const slug = extractSubdomainFromHost(host) ?? getDefaultTenantSlug()
+  const slug = slugFromHost(host) ?? getDefaultTenantSlug()
+  if (!slug) return { clinic: null, dbError: false }
 
   try {
     const clinic = await getClinicBySlug(slug)
