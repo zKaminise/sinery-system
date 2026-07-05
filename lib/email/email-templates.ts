@@ -3,6 +3,8 @@
  * text }. Simple, brand-light layout with an HTML + plain-text fallback.
  */
 
+import { appBaseUrl } from "@/lib/tenant/tenant-url"
+
 export interface RenderedEmail {
   subject: string
   html: string
@@ -12,10 +14,24 @@ export interface RenderedEmail {
 const BRAND = "Sinery System"
 const SUPPORT = "kaminise@sinery.com.br"
 
+/**
+ * Brand logo lockup for e-mails: the official icon (hosted PNG, since e-mail
+ * clients block SVG/data-URIs) + the "Sinery" wordmark. The wordmark text stays
+ * even when images are blocked (graceful fallback). The icon is served from the
+ * deployed app (`/brand/sinery-icon.png`) via the env base URL.
+ */
+function brandHeader(): string {
+  const logoUrl = `${appBaseUrl()}/brand/sinery-icon.png`
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px"><tr>
+      <td style="vertical-align:middle"><img src="${logoUrl}" width="36" height="36" alt="Sinery" style="display:block;border:0;outline:none;text-decoration:none;width:36px;height:36px"></td>
+      <td style="vertical-align:middle;padding-left:10px"><span style="font-size:22px;font-weight:800;color:#1e293b;letter-spacing:-0.4px;font-family:Arial,Helvetica,sans-serif">Sinery</span></td>
+    </tr></table>`
+}
+
 function layout(title: string, bodyHtml: string): string {
   return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
   <div style="max-width:520px;margin:0 auto;padding:24px">
-    <div style="font-size:20px;font-weight:700;color:#0f766e;margin-bottom:16px">Sinery</div>
+    ${brandHeader()}
     <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:24px">
       <h1 style="font-size:18px;margin:0 0 12px">${title}</h1>
       ${bodyHtml}

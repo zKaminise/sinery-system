@@ -24,6 +24,24 @@ export function handleAskAddress(ctx: AssistContext): AssistTurn {
   }
 }
 
+export function handleAskServices(ctx: AssistContext): AssistTurn {
+  // Lists the clinic's ACTIVE services from structured data. NEVER transfers.
+  const names = ctx.services.map((s) => s.name).filter(Boolean)
+  if (names.length === 0) {
+    return {
+      replies: [aiReply("No momento não encontrei serviços cadastrados. Posso chamar alguém da equipe para te ajudar.")],
+      flow: IDLE_DONE,
+      audits: [],
+    }
+  }
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`
+  return {
+    replies: [aiReply(`Realizamos: ${list}. Quer que eu verifique horários disponíveis para algum deles?`)],
+    flow: IDLE_DONE,
+    audits: [],
+  }
+}
+
 export function handleAskHours(ctx: AssistContext): AssistTurn {
   const { businessStartHour, businessEndHour } = ctx.settings
   if (businessStartHour == null || businessEndHour == null) {

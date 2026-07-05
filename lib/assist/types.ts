@@ -7,6 +7,7 @@ export type AssistIntent =
   | "RESCHEDULE_APPOINTMENT"
   | "CANCEL_APPOINTMENT"
   | "CONFIRM_APPOINTMENT"
+  | "ASK_SERVICES"
   | "ASK_ADDRESS"
   | "ASK_HOURS"
   | "ASK_PRICE"
