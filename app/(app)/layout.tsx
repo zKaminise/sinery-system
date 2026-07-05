@@ -2,6 +2,10 @@ import { redirect } from "next/navigation"
 
 import { getCurrentUser, getCurrentUserClinic, getSessionClinicStatus } from "@/lib/current-user"
 import { evaluateClinicAccess } from "@/lib/platform/clinic-access"
+import { getHostTenant } from "@/lib/tenant/tenant-context"
+import { evaluateTenantSessionBinding } from "@/lib/tenant/tenant-security"
+import { createAuditLog } from "@/lib/audit"
+import { AuditAction } from "@/lib/audit-actions"
 import { AppShell } from "@/components/layout/app-shell"
 import { ClinicBlockedScreen } from "@/components/layout/clinic-blocked-screen"
 
@@ -48,6 +52,31 @@ export default async function AuthenticatedLayout({
   }
 
   const clinic = await getCurrentUserClinic()
+
+  // Tenant session↔host binding (Prompt 27): when this request came in on a
+  // CLINIC subdomain, the logged-in user's own clinic (authoritative, from the
+  // DB) must match it. A clinic-A session used on clinic-B's host is denied and
+  // the session is cleared. At the root/app host (or local dev) there is no
+  // tenant to bind against, so nothing changes — this keeps HML working before
+  // wildcard DNS is live. See docs/domains-and-dns.md.
+  const hostTenant = await getHostTenant()
+  const binding = evaluateTenantSessionBinding({
+    hostKind: hostTenant.kind,
+    hostSlug: hostTenant.slug,
+    sessionSlug: clinic?.slug ?? null,
+  })
+  if (binding.action === "deny") {
+    await createAuditLog({
+      clinicId: user.clinicId,
+      userId: user.id,
+      action: AuditAction.TENANT_SESSION_MISMATCH,
+      entity: "User",
+      entityId: user.id,
+      description: "Sessão de clínica usada em um endereço de outra clínica — acesso negado.",
+      metadata: { sessionSlug: clinic?.slug ?? null, hostSlug: hostTenant.slug ?? null },
+    })
+    redirect("/api/auth/clear-session")
+  }
 
   return (
     <AppShell user={{ name: user.name, role: user.role }} clinicName={clinic?.name ?? null}>

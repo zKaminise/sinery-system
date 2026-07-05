@@ -56,7 +56,8 @@ Regras de ouro:
 | `APP_ENV` | ✅ | Ambiente funcional: `local` \| `staging` (ou `hml`) \| `production`. **Fonte de verdade** do readiness (`lib/env/env-readiness.ts`), independente de `NODE_ENV`. `SINERY_ENV` é um alias aceito com precedência. |
 | `DATABASE_URL` | ✅ 🔒 | Connection string PostgreSQL. Local: Docker (porta 5544). HML/PRD: Neon (`?sslmode=require`), **bancos separados por ambiente**. |
 | `AUTH_SECRET` | ✅ 🔒 | Chave que assina o JWT de sessão (jose). Gere com `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` (ou `openssl rand -base64 32`). **Único por ambiente** (HML ≠ PRD). **Em produção/staging o app se recusa a subir com placeholder ou < 32 caracteres** (`lib/auth-secret.ts`). |
-| `DEFAULT_TENANT_SLUG` | ✅/⚪ | Slug da clínica usada como fallback quando não há usuário logado. Local: `sorria-odonto`. HML/PRD: normalmente vazio. |
+| `DEFAULT_TENANT_SLUG` | ✅/⚪ | Slug da clínica usada como fallback quando não há usuário logado. **Local/dev apenas** — em staging/produção a raiz **nunca** resolve uma clínica padrão (Prompt 27). Local: `sorria-odonto`. HML/PRD: vazio. |
+| `TENANT_SUBDOMAIN_ENFORCED` | ⚪ | Enforcement de subdomínio (Prompt 27). Padrão `false` no código. Quando `true` **e** staging/produção: bloqueia login de clínica na raiz (exige `{slug}.<app>`). A negação cross-tenant e o vínculo sessão↔host são **sempre** ativos. **HML: wildcard já validado → use `true`.** PRD: `true` após validar `*.app.sinery.com.br`. Ver [domains-and-dns.md](./domains-and-dns.md#segurança-multi-tenant-por-subdomínio-prompt-27). |
 | `NEXT_PUBLIC_APP_URL` / `APP_URL` | ✅ | URL pública do app. Local `http://localhost:3000`; HML `https://hml.app.sinery.com.br`; PRD `https://app.sinery.com.br`. `APP_URL` é o equivalente server-side (não exposto ao bundle). |
 | `PLATFORM_FOUNDER_EMAIL` | ⚪ | E-mail do Founder criado pelo seed/bootstrap (fallback `founder@sinery.local`). |
 | `PLATFORM_FOUNDER_TEMP_PASSWORD` | ⚪ 🔒 | Senha provisória do Founder **só para o primeiro bootstrap**. A conta nasce `temporaryPassword: true` (troca no 1º login). **Rotacione/remova depois em produção.** |
@@ -204,6 +205,10 @@ Evolution é **bloqueada em produção** por padrão (o readiness gera critical 
 
 > Webhook em HML: `https://hml.app.sinery.com.br/api/webhooks/evolution?token=<EVOLUTION_WEBHOOK_SECRET>`.
 > `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_SECRET` **nunca** vão para o client. Ver [evolution-api-hml.md](./evolution-api-hml.md).
+>
+> Conjuntos de env **antes (mock) × depois (Evolution real)** na Vercel HML:
+> [evolution-api-hml.md §5.1](./evolution-api-hml.md#51-antes-mock--depois-evolution-real--vercel-hml-prompt-27).
+> Kit de infra (docker-compose + curl/.http): [`infra/evolution-hml/`](../infra/evolution-hml/README.md).
 
 ## 10. Futuras (ainda NÃO usadas no código)
 

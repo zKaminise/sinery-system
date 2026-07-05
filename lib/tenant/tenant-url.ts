@@ -12,6 +12,7 @@
  * Reserved/invalid slugs never produce a tenant URL (they return the base app URL).
  */
 import { RESERVED_SLUGS } from "@/lib/platform/slug"
+import { resolveTenantFromHost, type TenantResolution } from "@/lib/platform/tenant-resolver"
 
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
 
@@ -89,4 +90,14 @@ export function getTenantResolveOptions(): { rootDomain: string; appPrefix: stri
     appPrefix: deriveAppPrefix(appUrl, rootDomain),
     defaultSlug: (process.env.DEFAULT_TENANT_SLUG ?? "sorria-odonto").trim() || "sorria-odonto",
   }
+}
+
+/**
+ * Resolve the tenant from a request host using the current environment's
+ * options. PURE (no DB) — usable from the Proxy (edge), route handlers, server
+ * components, and tests. Prefer this single entry point everywhere so host
+ * parsing behaves identically across the app.
+ */
+export function resolveHostTenant(host: string | null | undefined): TenantResolution {
+  return resolveTenantFromHost(host, getTenantResolveOptions())
 }

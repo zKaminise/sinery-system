@@ -9,8 +9,8 @@ import {
 } from "@/lib/session"
 import { createAuditLog } from "@/lib/audit"
 import { AuditAction } from "@/lib/audit-actions"
-
-const GENERIC_LOGIN_ERROR = "E-mail ou senha inválidos."
+import { resolveLoginClinicScope, loginErrorFor } from "@/lib/tenant/tenant-security"
+import type { TenantResolution } from "@/lib/platform/tenant-resolver"
 
 export interface AuthResult {
   success: boolean
@@ -19,16 +19,53 @@ export interface AuthResult {
 
 /**
  * Verifies credentials, creates the session cookie, and logs the attempt.
- * Login is looked up by e-mail alone (not clinic-scoped): this MVP has no
- * subdomain/tenant selection step on the login screen yet, so it relies on
- * User.email being unique in practice across the single seeded clinic. See
- * docs/authentication.md for the multi-tenant login limitation.
+ *
+ * Multi-tenant subdomain scoping (Prompt 27): when the request host resolves to
+ * a specific clinic (e.g. `clinica-teste.hml.app.sinery.com.br`), the user
+ * lookup is scoped to that clinic's id — so a clinic-A user can NEVER log into
+ * clinic-B's subdomain, even with the correct password (the email won't match
+ * a member of clinic B → generic denial). At the root/app host (or in local
+ * dev), `hostTenant` is not a clinic, so lookup falls back to e-mail alone
+ * (unchanged legacy behavior — keeps HML working before wildcard DNS is live).
+ * Errors stay generic and existence-hiding. See docs/domains-and-dns.md.
  */
-export async function login(emailInput: string, password: string): Promise<AuthResult> {
+export async function login(
+  emailInput: string,
+  password: string,
+  hostTenant?: TenantResolution | null
+): Promise<AuthResult> {
   const email = emailInput.trim().toLowerCase()
+  const genericError = loginErrorFor(hostTenant)
+
+  // If the host is a clinic subdomain, scope the lookup to that clinic's id.
+  // If that slug doesn't map to a real clinic, there is no login here at all.
+  const scopeSlug = hostTenant ? resolveLoginClinicScope(hostTenant) : null
+  let scopedClinicId: string | null = null
+  if (scopeSlug) {
+    const clinic = await prisma.clinic.findUnique({
+      where: { slug: scopeSlug },
+      select: { id: true },
+    })
+    if (!clinic) {
+      // Keep the timing constant (still hash-compare) and never reveal that the
+      // clinic/host is unknown.
+      await verifyPassword(password, DUMMY_PASSWORD_HASH)
+      await createAuditLog({
+        clinicId: null,
+        userId: null,
+        action: AuditAction.AUTH_LOGIN_FAILED,
+        entity: "User",
+        entityId: null,
+        description: "Tentativa de login falhou (endereço de clínica desconhecido).",
+        metadata: { email, hostSlug: scopeSlug, reason: "clinic_not_found" },
+      })
+      return { success: false, error: genericError }
+    }
+    scopedClinicId = clinic.id
+  }
 
   const user = await prisma.user.findFirst({
-    where: { email },
+    where: scopedClinicId ? { email, clinicId: scopedClinicId } : { email },
     include: { clinic: true },
   })
 
@@ -48,21 +85,22 @@ export async function login(emailInput: string, password: string): Promise<AuthR
 
   if (!isAllowed) {
     await createAuditLog({
-      clinicId: user?.clinicId ?? null,
+      clinicId: user?.clinicId ?? scopedClinicId ?? null,
       userId: user?.id ?? null,
       action: AuditAction.AUTH_LOGIN_FAILED,
       entity: "User",
       entityId: user?.id ?? null,
       description: "Tentativa de login falhou.",
-      metadata: { email },
+      metadata: { email, hostSlug: scopeSlug ?? undefined },
     })
-    return { success: false, error: GENERIC_LOGIN_ERROR }
+    return { success: false, error: genericError }
   }
 
   await createSessionCookie({
     userId: user.id,
     clinicId: user.clinicId,
     role: user.role,
+    slug: user.clinic.slug,
   })
 
   if (!user.firstLoginAt) {

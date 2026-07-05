@@ -24,7 +24,10 @@ permissões continuam validados no backend do Sinery (mesmo motor da Assist).
 
 ## 4. Como obter uma Evolution API
 - Suba uma instância da Evolution API **fora deste repositório** (VPS/Render/Railway/etc.).
-  Este prompt **não** instala nem configura servidor Evolution.
+- Kit pronto de infraestrutura (docker-compose + README de 19 passos + exemplos
+  curl/.http): [`infra/evolution-hml/`](../infra/evolution-hml/README.md). Ele sobe
+  Evolution API v2 + PostgreSQL + Redis com volumes persistentes na porta `8080`,
+  usando `.env` (sem secrets no repo).
 - Você precisará da **URL base**, de uma **API key** e de um **instance name**.
 
 ## 5. Envs no Sinery (HML)
@@ -49,6 +52,32 @@ EVOLUTION_ALLOW_IN_PRODUCTION=false
 - **EVOLUTION_API_KEY** — chave da Evolution (header `apikey`). **Server-only.**
 - **EVOLUTION_INSTANCE_NAME** — nome da instância; resolve **uma única clínica** no Sinery.
 - **EVOLUTION_WEBHOOK_SECRET** — segredo que o Sinery valida no webhook (header ou query token). **Server-only.**
+
+### 5.1 Antes (mock) × Depois (Evolution real) — Vercel HML (Prompt 27)
+
+Antes de ter uma Evolution real no ar, o HML roda com o provider Evolution **em
+mock** (nada sai/entra de verdade — útil para exercitar UI/Assist). Depois de
+subir a Evolution e conectar o número, troque para o modo real. Só mudam as envs
+no painel da Vercel (HML) — nenhuma alteração de código.
+
+| Env | Antes (mock) | Depois (Evolution real) |
+|---|---|---|
+| `MESSAGING_PROVIDER` | `evolution` | `evolution` |
+| `EVOLUTION_API_ENABLED` | `true` | `true` |
+| `EVOLUTION_API_URL` | *(vazio ou placeholder)* | `https://evolution-hml.sinery.com.br` |
+| `EVOLUTION_API_KEY` | *(vazio)* | `<AUTHENTICATION_API_KEY real>` |
+| `EVOLUTION_INSTANCE_NAME` | `sinery-hml` | `sinery-hml` |
+| `EVOLUTION_WEBHOOK_SECRET` | `<aleatório>` | `<mesmo do webhook ?token=>` |
+| `EVOLUTION_WEBHOOK_ENABLED` | `true` | `true` |
+| `EVOLUTION_SEND_MESSAGES_ENABLED` | `true` | `true` |
+| `EVOLUTION_SEND_MOCK_MODE` | **`true`** | **`false`** |
+| `EVOLUTION_AUTO_PROCESS_ASSIST` | `true` | `true` |
+| `EVOLUTION_ASSIST_REPLY_ENABLED` | `false` (só interno) | `true` |
+| `EVOLUTION_ALLOW_IN_PRODUCTION` | `false` | `false` |
+
+> **Meta desligada em HML:** mantenha as `WHATSAPP_*` (Cloud API) **vazias/off**
+> enquanto o provider é Evolution — os dois não coexistem por clínica. Detalhe de
+> cada nome em [environment-variables.md](./environment-variables.md).
 
 ## 6. Configurar o webhook na Evolution
 Aponte o webhook da instância para:
@@ -108,3 +137,33 @@ com scrubbing de cookies/headers — **não** enviamos PII/mensagens completas. 
 
 ## 14. Testes manuais (mock local)
 Ver [staging-test-plan.md](./staging-test-plan.md) → seção "Evolution (local mock)".
+
+Plano de QA de HML (multi-tenant + Evolution mock/real): [hml-qa-test-plan.md](./hml-qa-test-plan.md).
+
+## 15. Por que não usamos n8n no fluxo principal?
+
+O fluxo desejado é direto, sem orquestrador externo:
+
+```
+WhatsApp → Evolution API → Sinery (webhook) → Sinery Assist / OpenAI → Agenda → Evolution API → WhatsApp
+```
+
+**O núcleo fica no Sinery** — recebimento, idempotência, resolução de clínica por
+`instanceName`, Assist/OpenAI (com guardrails, rate limit e AiSettings), agenda,
+conflitos e envio. Motivos para **não** colocar o n8n no caminho crítico:
+
+- **Menos partes móveis / menos latência:** cada salto extra (n8n) é mais um ponto
+  de falha, fila e atraso entre a mensagem do paciente e a resposta.
+- **Segurança e dados centralizados:** `clinicId` nunca vem do frontend/webhook; a
+  clínica é resolvida no Sinery. Enfiar um n8n no meio espalharia segredos
+  (API keys, webhook secret) e PII de pacientes por outro sistema.
+- **Idempotência e auditoria** vivem no Sinery (`MessagingWebhookEvent`,
+  `AssistProcessingRun`, `AuditLog`) — uma resposta por inbound, rastreável. Um
+  orquestrador externo duplicaria essa responsabilidade.
+- **Multi-tenant:** o roteamento por instância → clínica é regra de negócio do
+  Sinery; não é orquestração genérica.
+
+**Quando o n8n faz sentido (auxiliar, fora do caminho crítico):** automações
+periféricas — export para planilha/CRM, notificações internas (Slack/e-mail),
+relatórios agendados, integrações administrativas. Nesses casos o n8n **consome**
+eventos/APIs do Sinery, mas **não** fica entre o paciente e a resposta.

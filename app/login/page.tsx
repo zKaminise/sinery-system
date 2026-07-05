@@ -2,14 +2,31 @@ import type { Metadata } from "next"
 
 import { LoginForm } from "@/components/auth/login-form"
 import { LoginShowcase } from "@/components/auth/login-showcase"
+import { RootLoginNotice } from "@/components/auth/root-login-notice"
 import { SineryWordmark } from "@/components/brand/sinery-brand"
+import { getHostTenant, isSubdomainEnforced } from "@/lib/tenant/tenant-context"
+import { resolveAppEnv } from "@/lib/env/env-readiness"
+import { evaluateRootLoginAccess } from "@/lib/tenant/tenant-security"
+import { buildTenantUrl } from "@/lib/tenant/tenant-url"
 
 export const metadata: Metadata = {
   title: "Entrar — Sinery System",
   description: "Acesse o Sinery System, o sistema operacional inteligente para clínicas.",
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // At the ROOT host in staging/production (when enforced), clinic users must
+  // sign in on their clinic subdomain — show an explanatory screen, not a form.
+  const hostTenant = await getHostTenant()
+  const rootBlock = evaluateRootLoginAccess({
+    appEnv: resolveAppEnv(),
+    hostKind: hostTenant.kind,
+    enforced: isSubdomainEnforced(),
+  })
+  if (rootBlock.blocked) {
+    return <RootLoginNotice exampleUrl={buildTenantUrl("sua-clinica")} />
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:grid-cols-2 lg:min-h-[620px]">

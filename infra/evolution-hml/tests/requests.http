@@ -1,0 +1,95 @@
+###############################################################################
+# Evolution API — Sinery HML — request examples (Prompt 27, Part 9)
+#
+# Open in VS Code with the "REST Client" extension (or translate to curl — see
+# curl-examples.sh). Replace the @variables below. NO real secrets committed.
+#
+# Placeholders:
+#   @evolutionUrl      = <EVOLUTION_API_URL>      e.g. https://evolution-hml.sinery.com.br
+#   @apiKey            = <EVOLUTION_API_KEY>      the AUTHENTICATION_API_KEY
+#   @instance          = <EVOLUTION_INSTANCE_NAME> e.g. sinery-hml
+#   @webhookSecret     = <EVOLUTION_WEBHOOK_SECRET> random token (also in Sinery env)
+#   @sineryUrl         = <SINERY_HML_URL>         e.g. https://hml.app.sinery.com.br
+#
+# ⚠️  Endpoint shapes vary by Evolution version — confirm the request bodies
+#     against your pinned image tag (see README.md → "Verify env names").
+###############################################################################
+
+@evolutionUrl = <EVOLUTION_API_URL>
+@apiKey = <EVOLUTION_API_KEY>
+@instance = <EVOLUTION_INSTANCE_NAME>
+@webhookSecret = <EVOLUTION_WEBHOOK_SECRET>
+@sineryUrl = <SINERY_HML_URL>
+
+### 1) Health / version — the API root returns version info when it's up.
+GET {{evolutionUrl}}/
+Accept: application/json
+
+### 2) Create the instance (Baileys / QR-code integration).
+POST {{evolutionUrl}}/instance/create
+Content-Type: application/json
+apikey: {{apiKey}}
+
+{
+  "instanceName": "{{instance}}",
+  "integration": "WHATSAPP-BAILEYS",
+  "qrcode": true
+}
+
+### 3) Connect + fetch the QR code (scan it from WhatsApp on the test phone).
+GET {{evolutionUrl}}/instance/connect/{{instance}}
+apikey: {{apiKey}}
+
+### 4) Connection state (open = connected, connecting = waiting for QR/pairing).
+GET {{evolutionUrl}}/instance/connectionState/{{instance}}
+apikey: {{apiKey}}
+
+### 5) Point the instance's webhook at Sinery HML (token in the query string).
+#    Events: MESSAGES_UPSERT delivers inbound messages; MESSAGES_UPDATE brings
+#    delivery/read status. Confirm the body shape for your version.
+POST {{evolutionUrl}}/webhook/set/{{instance}}
+Content-Type: application/json
+apikey: {{apiKey}}
+
+{
+  "webhook": {
+    "enabled": true,
+    "url": "{{sineryUrl}}/api/webhooks/evolution?token={{webhookSecret}}",
+    "webhookByEvents": false,
+    "webhookBase64": false,
+    "events": ["MESSAGES_UPSERT", "MESSAGES_UPDATE"]
+  }
+}
+
+### 6) Send a text message (destination in international format, digits only).
+#    Test number (HML): 34991429784 → send as 5534991429784. Keep it in docs,
+#    never hardcode it in application code.
+POST {{evolutionUrl}}/message/sendText/{{instance}}
+Content-Type: application/json
+apikey: {{apiKey}}
+
+{
+  "number": "5534991429784",
+  "text": "Sinery HML — mensagem de teste via Evolution API."
+}
+
+### 7) Simulate an inbound message straight to the Sinery webhook (no phone).
+#    Useful to test Sinery's parsing/Assist without WhatsApp. The token must
+#    match EVOLUTION_WEBHOOK_SECRET. Shape mirrors an Evolution MESSAGES_UPSERT.
+POST {{sineryUrl}}/api/webhooks/evolution?token={{webhookSecret}}
+Content-Type: application/json
+
+{
+  "event": "messages.upsert",
+  "instance": "{{instance}}",
+  "data": {
+    "key": {
+      "remoteJid": "5534991429784@s.whatsapp.net",
+      "fromMe": false,
+      "id": "TEST-MESSAGE-0001"
+    },
+    "pushName": "Paciente Teste",
+    "message": { "conversation": "Olá, gostaria de agendar uma limpeza" },
+    "messageTimestamp": 1751000000
+  }
+}
