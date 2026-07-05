@@ -41,13 +41,21 @@ deles pode ser slug de clínica (nem no checkout, nem na criação manual).
   para o provedor de e-mail atual — o Resend só adiciona TXT/CNAME de envio, não
   mexe no recebimento.
 
-## Wildcard (tenants futuros)
+## Wildcard por ambiente (subdomínio automático de clínica)
 
-Para `{slug}.app.sinery.com.br`:
-1. DNS: registro wildcard `*.app.sinery.com.br` (CNAME → Vercel).
-2. Vercel: adicione o domínio wildcard `*.app.sinery.com.br` ao projeto do sistema.
-3. O `resolveTenantFromHost` já extrai o slug (basta usar `rootDomain` correto e o
-   proxy/página consumir o slug). Slugs reservados continuam bloqueados.
+Cada clínica é acessada por um subdomínio derivado do slug, **por ambiente**:
+
+| Ambiente | App root | Clínica (wildcard) |
+|---|---|---|
+| **HML** | `hml.app.sinery.com.br` | `*.hml.app.sinery.com.br` → `{slug}.hml.app.sinery.com.br` |
+| **PRD** | `app.sinery.com.br` | `*.app.sinery.com.br` → `{slug}.app.sinery.com.br` |
+
+Para habilitar:
+1. **DNS**: registro wildcard `*.hml.app.sinery.com.br` (HML) e/ou `*.app.sinery.com.br` (PRD), CNAME → Vercel.
+2. **Vercel**: adicione o domínio wildcard ao projeto correspondente (HML → projeto HML; PRD → projeto PRD).
+3. O helper `buildTenantUrl` (`lib/tenant/tenant-url.ts`) já gera a URL correta a partir do **APP_URL** do ambiente (sem hardcode), e `resolveTenantFromHost` (com `appPrefix` derivado por `getTenantResolveOptions`) já extrai o slug de `{slug}.hml.app.<root>` e `{slug}.app.<root>`. Slugs reservados nunca viram clínica.
+
+> **Criar uma clínica no Founder NÃO cria um registro DNS individual.** É o **wildcard** que resolve todos os slugs de uma vez. Enquanto o wildcard não estiver configurado, o login continua funcionando pelo host geral (`hml.app.sinery.com.br` / `app.sinery.com.br`) — só o subdomínio por clínica depende do wildcard.
 
 ## URLs da API pública de checkout
 

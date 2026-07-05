@@ -5,6 +5,11 @@ import { evaluateClinicAccess } from "@/lib/platform/clinic-access"
 import { AppShell } from "@/components/layout/app-shell"
 import { ClinicBlockedScreen } from "@/components/layout/clinic-blocked-screen"
 
+// Every authenticated route is per-request (auth cookie + tenant data). Force
+// dynamic so `next build` never tries to prerender them — this keeps the build
+// from querying the database at build time (safe on Vercel; no DB coupling).
+export const dynamic = "force-dynamic"
+
 export default async function AuthenticatedLayout({
   children,
 }: {

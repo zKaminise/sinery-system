@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { hashPassword, generateProvisionalPassword } from "@/lib/password"
 import { slugify, validateSlug } from "@/lib/platform/slug"
 import { createPlatformAuditLog, PlatformAuditAction } from "@/lib/platform/platform-audit"
+import { buildTenantUrl } from "@/lib/tenant/tenant-url"
+import { buildDefaultKnowledgeBase } from "@/lib/assist/default-knowledge-base"
 
 /**
  * Shared clinic provisioning (Prompt 22). ONE transactional service used by BOTH
@@ -81,11 +83,13 @@ export interface ProvisionClinicResult {
   }
 }
 
-/** Informational tenant URL for the welcome email / success screen. */
+/**
+ * Informational tenant URL for the welcome email / success screen. Delegates to
+ * the env-aware helper so HML → https://{slug}.hml.app.sinery.com.br and
+ * PRD → https://{slug}.app.sinery.com.br automatically (from APP_URL, no hardcode).
+ */
 export function clinicAppUrl(slug: string): string {
-  const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "").trim()
-  if (root && !root.includes("localhost")) return `https://${slug}.app.${root}`
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  return buildTenantUrl(slug)
 }
 
 export async function provisionClinic(input: ProvisionClinicInput): Promise<ProvisionClinicResult> {
@@ -115,7 +119,19 @@ export async function provisionClinic(input: ProvisionClinicInput): Promise<Prov
         },
       })
       await tx.clinicSettings.create({ data: { clinicId: clinic.id } })
-      await tx.aiSettings.create({ data: { clinicId: clinic.id } })
+      // Prompt 25: new clinics are born with a usable Assist base — enabled +
+      // able to schedule/reschedule/cancel (pricing stays off; it's sensitive).
+      await tx.aiSettings.create({
+        data: { clinicId: clinic.id, enabled: true, canSchedule: true, canReschedule: true, canCancel: true },
+      })
+      // Generic, editable initial knowledge base (Services come from the table).
+      await tx.aiKnowledgeBase.createMany({
+        data: buildDefaultKnowledgeBase({ clinicName: input.clinicName, city: input.city, state: input.state }).map((k) => ({
+          clinicId: clinic.id,
+          title: k.title,
+          content: k.content,
+        })),
+      })
       await tx.whatsAppIntegration.create({ data: { clinicId: clinic.id, webhookPath: "/api/webhooks/whatsapp" } })
 
       const owner = await tx.user.create({

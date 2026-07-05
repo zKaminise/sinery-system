@@ -26,6 +26,12 @@ export interface ResolveTenantOptions {
   rootDomain?: string
   /** Slug used for localhost/dev. */
   defaultSlug?: string
+  /**
+   * Subdomain labels between a tenant slug and the root domain: "app" in
+   * production, "hml.app" in HML/staging. Defaults to "app". Derived from
+   * APP_URL by `getTenantResolveOptions()` (lib/tenant/tenant-url.ts).
+   */
+  appPrefix?: string
 }
 
 function stripPort(host: string): string {
@@ -38,6 +44,7 @@ export function resolveTenantFromHost(
 ): TenantResolution {
   const defaultSlug = options.defaultSlug ?? "sorria-odonto"
   const rootDomain = (options.rootDomain ?? "").trim().toLowerCase()
+  const appPrefix = (options.appPrefix ?? "app").trim().toLowerCase() || "app"
 
   if (!host) return { kind: "default", slug: defaultSlug }
 
@@ -63,13 +70,14 @@ export function resolveTenantFromHost(
 
   const prefix = hostname.slice(0, hostname.length - rootDomain.length - 1) // drop ".root"
 
-  // app.<root> → general login.
-  if (prefix === "app") return { kind: "app" }
+  // <appPrefix>.<root> → general login (e.g. "app" prod, "hml.app" staging).
+  if (prefix === appPrefix) return { kind: "app" }
 
-  // {slug}.app.<root> → clinic.
-  if (prefix.endsWith(".app")) {
-    const slug = prefix.slice(0, prefix.length - ".app".length)
-    return slugToResolution(slug)
+  // {slug}.<appPrefix>.<root> → clinic. The slug must be a single label.
+  if (prefix.endsWith(`.${appPrefix}`)) {
+    const slug = prefix.slice(0, prefix.length - appPrefix.length - 1)
+    if (!slug.includes(".")) return slugToResolution(slug)
+    return { kind: "app" } // deeper unknown subdomain
   }
 
   // {slug}.<root> (single-label subdomain) → clinic.

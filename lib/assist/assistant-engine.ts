@@ -9,6 +9,7 @@ import { startCancel, continueCancel } from "@/lib/assist/flows/cancel-flow"
 import { startReschedule, continueReschedule } from "@/lib/assist/flows/reschedule-flow"
 import { handleConfirm } from "@/lib/assist/flows/confirm-flow"
 import {
+  handleAskServices,
   handleAskAddress,
   handleAskHours,
   handleAskPrice,
@@ -46,6 +47,8 @@ async function dispatchFresh(ctx: AssistContext, intent: AssistIntent): Promise<
       return startReschedule(ctx)
     case "CONFIRM_APPOINTMENT":
       return handleConfirm(ctx)
+    case "ASK_SERVICES":
+      return handleAskServices(ctx)
     case "ASK_ADDRESS":
       return handleAskAddress(ctx)
     case "ASK_HOURS":

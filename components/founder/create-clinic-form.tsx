@@ -82,10 +82,12 @@ export function CreateClinicForm({ plans }: { plans: PlanOption[] }) {
           <Alert>
             A senha provisória é exibida <strong>uma única vez</strong>.{" "}
             {success.emailStatus === "SENT"
-              ? "Um e-mail de boas-vindas foi enviado ao responsável."
+              ? "✅ Um e-mail de boas-vindas/acesso foi enviado automaticamente ao responsável."
               : success.emailStatus === "MOCKED"
-                ? "E-mail em modo mock (não enviado) — copie e envie manualmente."
-                : "Copie e envie ao responsável agora."}
+                ? "✉️ E-mail em modo mock (EMAIL_MOCK_MODE=true) — não enviado; copie e envie manualmente."
+                : success.emailStatus === "FAILED"
+                  ? "⚠️ Falha ao enviar o e-mail automático — copie e envie a mensagem abaixo manualmente."
+                  : "Copie e envie ao responsável agora."}
           </Alert>
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <Field label="Clínica" value={success.clinicName} />
@@ -111,7 +113,8 @@ export function CreateClinicForm({ plans }: { plans: PlanOption[] }) {
             <Button variant="outline" render={<Link href={`/founder/clientes`}>Voltar aos clientes</Link>} nativeButton={false} />
           </div>
           <p className="text-xs text-muted-foreground">
-            O envio automático por e-mail (Resend) será implementado futuramente — por enquanto copie e envie manualmente.
+            O e-mail de acesso é enviado automaticamente via Resend ao criar a clínica. Se precisar reenviar (com uma
+            NOVA senha provisória), use o botão <strong>&ldquo;Reenviar acesso&rdquo;</strong> no detalhe do cliente.
           </p>
         </CardContent>
       </Card>
