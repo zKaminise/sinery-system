@@ -23,6 +23,8 @@ const SENSITIVE_KEYS = [
   "WHATSAPP_APP_SECRET",
   "ASAAS_WEBHOOK_TOKEN",
   "WHATSAPP_WEBHOOK_VERIFY_TOKEN",
+  "EVOLUTION_API_KEY",
+  "EVOLUTION_WEBHOOK_SECRET",
 ]
 const PLACEHOLDER_TOKENS = [
   "generate",
@@ -35,6 +37,8 @@ const PLACEHOLDER_TOKENS = [
   "asaas-production-key",
   "local-",
   "fake",
+  "evolution-api-key",
+  "evolution-webhook-secret",
 ]
 
 function parseEnvExample(file: string): Record<string, string> {

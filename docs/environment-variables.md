@@ -16,11 +16,18 @@ O projeto separa os ambientes assim:
 | `.env.staging.example` | ✅ sim | Template com **placeholders** de HML. |
 | `.env.production.example` | ✅ sim | Template com **placeholders** de produção. |
 | `.env` / `.env.local` | ❌ nunca | Desenvolvimento local real (Docker na porta 5544). |
-| `.env.staging.local` | ❌ nunca | Opcional: rodar HML localmente. **A Vercel NÃO lê este arquivo.** |
-| `.env.production.local` | ❌ nunca | Opcional: rodar produção localmente. **A Vercel NÃO lê este arquivo.** |
+| `.env.staging.local` | ❌ nunca | "Cola" de HML para colar na Vercel. **A Vercel NÃO lê este arquivo.** |
+| `.env.prd.local` | ❌ nunca | "Cola" de produção para colar na Vercel. **A Vercel NÃO lê este arquivo.** |
+
+> ⚠️ **Cuidado com o nome `.env.production.local`**: `next build` roda com
+> `NODE_ENV=production` e **carrega `.env.production.local` automaticamente**. Se você
+> puser o `DATABASE_URL` real de produção nesse arquivo, o **build local** vai apontar
+> para o banco de produção. Por isso a "cola" de produção usa **`.env.prd.local`**
+> (que o Next NÃO carrega, mas continua no `.gitignore` via `.env*.local`). O banco e
+> segredos reais de produção vivem só na Vercel.
 
 - **Local**: `cp .env.local.example .env.local` e ajuste. O Next carrega `.env.local`
-  automaticamente.
+  e `.env` automaticamente.
 - **HML/Produção na Vercel**: as variáveis vêm do **painel** (Environment Variables),
   não de arquivos `.local`. Use os `*.example` só como lista de nomes.
 - **`APP_ENV` é a fonte de verdade do ambiente funcional** (`local` | `staging` | `production`),
@@ -173,6 +180,31 @@ Com tudo vazio a integração fica "não configurada" e o app roda normalmente.
 > Real só quando: e-mail `EMAIL_MOCK_MODE=false` + `RESEND_API_KEY`; Asaas
 > `ASAAS_ENABLED=true` + `ASAAS_MOCK_MODE=false` + `ASAAS_API_KEY`.
 
+## 9b. Mensageria: provider + Evolution API — Prompt 24
+
+Provider por clínica: **Meta Cloud API** (produção) ou **Evolution API** (HML/testes).
+Evolution é **bloqueada em produção** por padrão (o readiness gera critical issue).
+
+| Variável | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `MESSAGING_PROVIDER` | ⚪ | `meta_cloud` | `meta_cloud` \| `evolution`. Provider padrão do ambiente. |
+| `EVOLUTION_API_ENABLED` | ⚪ | `false` | Liga a integração Evolution. |
+| `EVOLUTION_API_URL` | ⚪ | vazio | URL base da Evolution API. |
+| `EVOLUTION_API_KEY` | ⚪ 🔒 | vazio | Chave da Evolution (header `apikey`). **Server-only.** |
+| `EVOLUTION_INSTANCE_NAME` | ⚪ | vazio | Nome da instância; resolve **uma única clínica**. |
+| `EVOLUTION_WEBHOOK_SECRET` | ⚪ 🔒 | vazio | Segredo do webhook (header `x-sinery-evolution-secret` ou `?token=`). **Server-only.** |
+| `EVOLUTION_WEBHOOK_PATH` | ⚪ | `/api/webhooks/evolution` | Caminho do webhook. |
+| `EVOLUTION_WEBHOOK_ENABLED` | ⚪ | `false` | Liga o POST do webhook. |
+| `EVOLUTION_SEND_MESSAGES_ENABLED` | ⚪ | `false` | Habilita envio (real/mock). |
+| `EVOLUTION_SEND_MOCK_MODE` | ⚪ | `true` | `true` simula o envio (mock id `mock_evolution_…`) sem chamar a API. |
+| `EVOLUTION_AUTO_PROCESS_ASSIST` | ⚪ | `false` | Aciona a Assist em inbound Evolution (AI_HANDLING). |
+| `EVOLUTION_ASSIST_REPLY_ENABLED` | ⚪ | `false` | Permite ENVIAR a resposta da Assist pela Evolution. |
+| `EVOLUTION_PROCESSING_TIMEOUT_MS` | ⚪ | `20000` | Timeout do processamento/envio. |
+| `EVOLUTION_ALLOW_IN_PRODUCTION` | ⚪ | `false` | **Não** ligar em produção (gera critical warning se `true`). |
+
+> Webhook em HML: `https://hml.app.sinery.com.br/api/webhooks/evolution?token=<EVOLUTION_WEBHOOK_SECRET>`.
+> `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_SECRET` **nunca** vão para o client. Ver [evolution-api-hml.md](./evolution-api-hml.md).
+
 ## 10. Futuras (ainda NÃO usadas no código)
 
 | Variável | Para |
@@ -220,4 +252,4 @@ Com tudo vazio a integração fica "não configurada" e o app roda normalmente.
 5. Garanta `APP_ENV=staging` no projeto HML e `APP_ENV=production` no projeto PRD.
 6. Bancos e `AUTH_SECRET` **diferentes** entre HML e PRD.
 7. **Nunca** cole segredos em docs, chat ou nos arquivos `*.example`.
-8. Rode `npm run env:check` localmente (com `.env.staging.local`/`.env.production.local`) para conferir o que falta **por nome** antes do deploy.
+8. `npm run env:check` valida o env **da sua máquina** (`.env.local`/`.env`, sempre `local`). Para conferir HML/PRD, use o `GET /api/health/deep` (bloco `readiness`) já no ambiente deployado.

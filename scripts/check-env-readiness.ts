@@ -15,11 +15,14 @@ import { config as loadEnv } from "dotenv"
 
 import { getEnvReadiness, resolveAppEnv } from "../lib/env/env-readiness"
 
-// Load local env files if present (dotenv does NOT override already-set vars, so
-// process.env / Vercel-provided vars always win). Precedence mirrors Next.js:
-// .env.local > .env.staging.local > .env.production.local > .env
+// Load ONLY the machine's real runtime env (the same files Next.js uses in dev:
+// .env.local > .env), so `env:check` reflects THIS environment. dotenv does not
+// override already-set vars, so process.env / Vercel-provided vars always win.
+// The per-env Vercel colas (.env.staging.local / .env.prd.local) are NOT loaded
+// here on purpose — they describe OTHER environments; validate those on the
+// deployed target via GET /api/health/deep.
 const root = resolve(__dirname, "..")
-for (const file of [".env.local", ".env.staging.local", ".env.production.local", ".env"]) {
+for (const file of [".env.local", ".env"]) {
   const path = resolve(root, file)
   if (existsSync(path)) loadEnv({ path, override: false })
 }

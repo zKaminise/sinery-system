@@ -7,6 +7,7 @@ import {
   getDayOfWeekForDate,
   zonedWallClockToUtc,
 } from "../lib/appointments/date-utils"
+import { normalizeMessagingProvider } from "../lib/messaging/messaging-types"
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter })
@@ -783,17 +784,39 @@ async function main() {
   })
 
   // WhatsApp integration (Prompt 16 — preparatory, NEVER stores a token).
+  // Prompt 24: when MESSAGING_PROVIDER=evolution (local/HML), the demo clinic is
+  // set to the EVOLUTION_API provider so inbound webhooks resolve to it by
+  // instanceName. The instance name comes from EVOLUTION_INSTANCE_NAME (fallback
+  // "sinery-local"); the test phone number is NEVER hardcoded here.
+  const seedProvider = normalizeMessagingProvider(process.env.MESSAGING_PROVIDER)
+  const seedUseEvolution = seedProvider === "EVOLUTION_API"
+  const seedEvolutionInstance = (process.env.EVOLUTION_INSTANCE_NAME ?? "").trim() || "sinery-local"
+  const seedEvolutionSecretConfigured = (process.env.EVOLUTION_WEBHOOK_SECRET ?? "").trim().length > 0
+  const evolutionFields = seedUseEvolution
+    ? {
+        provider: "EVOLUTION_API",
+        enabled: true,
+        evolutionInstanceName: seedEvolutionInstance,
+        evolutionWebhookSecretConfigured: seedEvolutionSecretConfigured,
+        evolutionStatus: "CONFIGURED",
+      }
+    : {
+        provider: "META_CLOUD_API",
+        enabled: false,
+        evolutionInstanceName: null,
+        evolutionWebhookSecretConfigured: false,
+        evolutionStatus: null,
+      }
   await prisma.whatsAppIntegration.upsert({
     where: { clinicId: clinic.id },
     update: {
-      provider: "META_CLOUD_API",
+      ...evolutionFields,
       displayPhoneNumber: "+55 34 99999-0000",
       verifiedName: "Clínica Sorria Odonto",
     },
     create: {
       clinicId: clinic.id,
-      enabled: false,
-      provider: "META_CLOUD_API",
+      ...evolutionFields,
       displayPhoneNumber: "+55 34 99999-0000",
       verifiedName: "Clínica Sorria Odonto",
       status: "NOT_CONFIGURED",

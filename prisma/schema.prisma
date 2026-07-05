@@ -148,6 +148,7 @@ model Clinic {
   professionalServices ProfessionalService[]
   whatsAppIntegration  WhatsAppIntegration?
   whatsAppWebhookEvents WhatsAppWebhookEvent[]
+  messagingWebhookEvents MessagingWebhookEvent[]
   assistProcessingRuns  AssistProcessingRun[]
 
   // Commercial / billing (Prompt 21 — Founder/Platform admin).
@@ -500,11 +501,25 @@ model WhatsAppIntegration {
   clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   enabled  Boolean @default(false)
+  // Messaging provider for this clinic: "META_CLOUD_API" (default/prod) or
+  // "EVOLUTION_API" (HML/testing). Kept as String (not enum) to avoid a fragile
+  // enum migration — validated in code via lib/messaging/messaging-types.ts.
   provider String  @default("META_CLOUD_API")
 
   businessAccountId String?
   phoneNumberId     String?
   appId             String?
+
+  // Evolution API (Prompt 24) — used only when provider="EVOLUTION_API". The
+  // API key / webhook secret are NEVER stored (only a "configured" boolean);
+  // they live in env. evolutionInstanceName resolves exactly one clinic.
+  evolutionInstanceName            String?   @unique
+  evolutionInstanceId              String?
+  evolutionWebhookSecretConfigured Boolean   @default(false)
+  evolutionStatus                  String?
+  lastEvolutionConfigCheckAt       DateTime?
+  lastEvolutionMessageReceivedAt   DateTime?
+  lastEvolutionMessageSentAt       DateTime?
 
   displayPhoneNumber String?
   verifiedName       String?
@@ -568,6 +583,43 @@ model WhatsAppWebhookEvent {
   @@index([eventType])
   @@index([whatsappMessageId])
   @@index([phoneNumberId])
+  @@index([receivedAt])
+}
+
+/// Provider-agnostic inbound webhook idempotency (Prompt 24 — Evolution API,
+/// extensible to future providers). Unique payloadHash prevents duplicate
+/// processing on re-delivery. NEVER stores the raw payload, API key, or webhook
+/// secret — only a hash + non-sensitive summary (provider/instance/masked-ish).
+model MessagingWebhookEvent {
+  id String @id @default(cuid())
+
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  /// "META_CLOUD_API" | "EVOLUTION_API".
+  provider          String
+  eventType         String
+  externalMessageId String?
+  instanceName      String?
+  fromPhone         String?
+  payloadHash       String
+
+  processed    Boolean @default(false)
+  ignored      Boolean @default(false)
+  errorCode    String?
+  errorMessage String?
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([payloadHash])
+  @@index([clinicId])
+  @@index([provider])
+  @@index([eventType])
+  @@index([externalMessageId])
+  @@index([instanceName])
   @@index([receivedAt])
 }
 

@@ -7,8 +7,10 @@ separado (ver [domains-and-dns.md](./domains-and-dns.md)).
 
 | | **LOCAL** | **HML / STAGING** | **PRODUCTION** |
 |---|---|---|---|
+| Branch (Git Flow) | `feature/*` | **`develop`** | **`main`** |
 | Domínio | localhost:3000 | **hml.app.sinery.com.br** | app.sinery.com.br |
 | `APP_ENV` | `local` | `staging` (`hml` também aceito) | `production` |
+| Provider mensageria | Evolution (mock) | **Evolution API** | **Meta Cloud API** |
 | Banco | Docker/Prisma dev | Postgres remoto **staging** | Postgres remoto **produção** (separado) |
 | Schema | `db:push` ok | `db:migrate:deploy` | `db:migrate:deploy` |
 | `AUTH_SECRET` | qualquer | **real ≥32** | **real ≥32** |
