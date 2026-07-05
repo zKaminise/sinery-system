@@ -4,14 +4,19 @@
 
 Três projetos Vercel possíveis, cada um com **Environment Variables próprias**:
 
-| Projeto | Domínio(s) | Aponta p/ este repo? |
-|---|---|---|
-| **SITE** (institucional) | `sinery.com.br`, `www.sinery.com.br` | não (repo do site) |
-| **SISTEMA — HML** | `hml.app.sinery.com.br` | ✅ sim |
-| **SISTEMA — PRD** | `app.sinery.com.br` | ✅ sim |
+| Projeto | Domínio(s) | Production branch (Git Flow) | Aponta p/ este repo? |
+|---|---|---|---|
+| **SITE** (institucional) | `sinery.com.br`, `www.sinery.com.br` | — | não (repo do site) |
+| **SISTEMA — HML** | `hml.app.sinery.com.br` | **`develop`** | ✅ sim |
+| **SISTEMA — PRD** | `app.sinery.com.br` | **`main`** | ✅ sim |
 
 HML e PRD são **dois projetos Vercel separados** ligados ao **mesmo** repositório,
 com **bancos diferentes** e **`AUTH_SECRET` diferentes**.
+
+**Git Flow (ver [git-flow.md](./git-flow.md)):** no projeto Vercel **HML**, configure
+Settings → Git → **Production Branch = `develop`**; no projeto **PRD**, Production
+Branch = `main`. Assim, merge em `develop` publica HML e merge em `main` publica PRD,
+usando o mesmo GitHub repo com envs/bancos separados por projeto.
 
 ## Projeto SITE (separado)
 
@@ -59,10 +64,15 @@ Opções:
 5. Bancos (`DATABASE_URL`) e `AUTH_SECRET` **diferentes** entre HML e PRD.
 6. **Não** cole segredos em docs, chat ou nos `*.example`.
 
-> Os arquivos `.env.staging.local` / `.env.production.local` são **opcionais e locais**
-> (para rodar aquele ambiente na sua máquina). **A Vercel não lê esses arquivos** — em
-> HML/PRD, tudo vem do painel. Rode `npm run env:check` local para conferir o que falta
-> **por nome** antes de subir.
+> As "colas" locais `.env.staging.local` (HML) e `.env.prd.local` (PRD) são **opcionais**
+> e servem só para você copiar os valores para o painel. **A Vercel não lê esses
+> arquivos** — em HML/PRD tudo vem do painel.
+>
+> ⚠️ Use **`.env.prd.local`** para produção, **nunca `.env.production.local`**: o
+> `next build` (NODE_ENV=production) carrega `.env.production.local` automaticamente e
+> seu build LOCAL passaria a apontar para o banco de produção. Confira o readiness de
+> HML/PRD pelo `GET /api/health/deep` já no ambiente deployado (não pelo `env:check`,
+> que valida só a sua máquina).
 
 Mínimo por ambiente: `APP_ENV`, `DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_APP_URL`,
 `APP_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `DEFAULT_TENANT_SLUG`, + Sentry + (quando reais)

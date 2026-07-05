@@ -53,8 +53,30 @@ Testar checkout mock + webhook Asaas mock (ver [asaas-integration.md](./asaas-in
 - [ ] Checkout (mock/sandbox) → webhook → provisionamento → e-mail
 - [ ] Suspensão/liberação · Auditoria · Assist · WhatsApp mock
 
+## D2. Evolution (local mock) — Prompt 24
+
+Com `APP_ENV=local MESSAGING_PROVIDER=evolution EVOLUTION_API_ENABLED=true
+EVOLUTION_SEND_MOCK_MODE=true EVOLUTION_WEBHOOK_ENABLED=true
+EVOLUTION_AUTO_PROCESS_ASSIST=true EVOLUTION_ASSIST_REPLY_ENABLED=true` (já é o padrão
+do `.env.local.example`) e o seed com provider Evolution na clínica Sorria:
+
+1. `npm run dev`.
+2. `POST /api/webhooks/evolution?token=<EVOLUTION_WEBHOOK_SECRET>` com um payload `messages.upsert` de texto
+   (instance `sinery-local`, `key.remoteJid` com um número de teste, `message.conversation`).
+3. Conferir Conversation criada + Message INBOUND em `/conversas` (badge **Evolution**).
+4. Conferir que a Assist respondeu (Message OUTBOUND/AI mock, `mock_evolution_…`).
+5. Reenviar o mesmo payload → **não** duplica (idempotência).
+6. Assumir como humano → novo inbound → Assist **não** responde.
+7. Humano responde pelo inbox → envio mock via Evolution.
+8. Devolver para Assist → volta a responder.
+9. `/api/health/deep` mostra o bloco `readiness.messaging` (sem secret) e `/configuracoes/whatsapp` mostra o card **Mensageria**.
+
+## D3. Evolution real (HML)
+Ver [evolution-api-hml.md](./evolution-api-hml.md) → seções 6–8 (webhook, conectar número, testes).
+
 ## E. Antes de produção
 
 - [ ] `readyForProduction=true` no `/api/health/deep`
 - [ ] `AUTH_SECRET` real, mocks desligados, backups, migrations aplicadas
+- [ ] **Produção usa `MESSAGING_PROVIDER=meta_cloud`** (Evolution bloqueada / `EVOLUTION_ALLOW_IN_PRODUCTION=false`)
 - [ ] Ver [v1-release-checklist.md](./v1-release-checklist.md)

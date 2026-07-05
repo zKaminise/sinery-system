@@ -1,4 +1,5 @@
 import { validateAuthSecret } from "@/lib/auth-secret"
+import { evaluateMessagingReadiness, type MessagingReadiness, type MessagingReadinessInput } from "@/lib/messaging/messaging-readiness"
 
 /**
  * Environment readiness for staging/production (Prompt 23). PURE evaluation over
@@ -28,6 +29,8 @@ export interface EnvSnapshot {
   assistUseRealAi: boolean
   hasOpenAiKey: boolean
   hasSentryDsn: boolean
+  /** Messaging provider (Prompt 24) — optional so existing snapshots stay valid. */
+  messaging?: MessagingReadinessInput
 }
 
 export interface ReadinessResult {
@@ -40,6 +43,8 @@ export interface ReadinessResult {
   warnings: string[]
   /** Issues that BLOCK production (e.g. mock modes / weak secret). */
   criticalIssues: string[]
+  /** Safe messaging-provider readiness (Evolution/Meta) — NAMES/booleans only. */
+  messaging?: MessagingReadiness
 }
 
 export function evaluateEnvReadiness(env: EnvSnapshot): ReadinessResult {
@@ -86,6 +91,16 @@ export function evaluateEnvReadiness(env: EnvSnapshot): ReadinessResult {
   else if (env.asaasMockMode) warnings.push("ASAAS_MOCK_MODE=true (Asaas desabilitado — sem efeito).")
   if (env.whatsappSendEnabled && env.whatsappSendMockMode) criticalIssues.push("WHATSAPP_SEND_MOCK_MODE=true com envio habilitado não é permitido em produção.")
 
+  // Messaging provider (Prompt 24 — Evolution/Meta). Folds its own missing/
+  // warnings/critical into the overall readiness (Evolution blocked in prod).
+  let messaging: MessagingReadiness | undefined
+  if (env.messaging) {
+    messaging = evaluateMessagingReadiness(env.messaging)
+    missingRequired.push(...messaging.missingRequired)
+    warnings.push(...messaging.warnings)
+    criticalIssues.push(...messaging.criticalIssues)
+  }
+
   const stagingBaseOk = env.hasDatabaseUrl && env.hasAppUrl && !!env.authSecret && secretCheck.ok && missingRequired.length === 0
 
   return {
@@ -97,6 +112,7 @@ export function evaluateEnvReadiness(env: EnvSnapshot): ReadinessResult {
     missingRequired,
     warnings,
     criticalIssues,
+    messaging,
   }
 }
 
@@ -132,8 +148,9 @@ export function resolveAppEnv(): AppEnv {
 }
 
 export function getEnvReadiness(): ReadinessResult {
+  const appEnv = resolveAppEnv()
   return evaluateEnvReadiness({
-    appEnv: resolveAppEnv(),
+    appEnv,
     hasDatabaseUrl: has("DATABASE_URL"),
     authSecret: process.env.AUTH_SECRET,
     hasAppUrl: has("NEXT_PUBLIC_APP_URL"),
@@ -152,5 +169,19 @@ export function getEnvReadiness(): ReadinessResult {
     assistUseRealAi: bool("ASSIST_USE_REAL_AI"),
     hasOpenAiKey: has("OPENAI_API_KEY"),
     hasSentryDsn: has("SENTRY_DSN"),
+    messaging: {
+      appEnv,
+      provider: process.env.MESSAGING_PROVIDER,
+      evolutionEnabled: bool("EVOLUTION_API_ENABLED"),
+      hasEvolutionUrl: has("EVOLUTION_API_URL"),
+      hasEvolutionKey: has("EVOLUTION_API_KEY"),
+      hasEvolutionInstance: has("EVOLUTION_INSTANCE_NAME"),
+      hasEvolutionWebhookSecret: has("EVOLUTION_WEBHOOK_SECRET"),
+      evolutionWebhookEnabled: bool("EVOLUTION_WEBHOOK_ENABLED"),
+      evolutionSendMessagesEnabled: bool("EVOLUTION_SEND_MESSAGES_ENABLED"),
+      evolutionSendMockMode: bool("EVOLUTION_SEND_MOCK_MODE", true),
+      evolutionAssistReplyEnabled: bool("EVOLUTION_ASSIST_REPLY_ENABLED"),
+      evolutionAllowedInProduction: bool("EVOLUTION_ALLOW_IN_PRODUCTION"),
+    },
   })
 }

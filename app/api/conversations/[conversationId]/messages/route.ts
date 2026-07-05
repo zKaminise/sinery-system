@@ -5,8 +5,7 @@ import { AuditAction } from "@/lib/audit-actions"
 import { successResponse, errorResponse } from "@/lib/api-response"
 import { sendMessageSchema } from "@/lib/validators/conversation"
 import { canManageConversations, canSendWhatsAppMessage } from "@/lib/permissions"
-import { getWhatsAppSendFlags } from "@/lib/whatsapp/whatsapp-config"
-import { sendWhatsAppTextMessage } from "@/lib/whatsapp/whatsapp-send-service"
+import { sendConversationText } from "@/lib/messaging/messaging-send-service"
 
 export async function POST(
   request: Request,
@@ -56,17 +55,15 @@ export async function POST(
     return errorResponse(parsed.error.issues[0]?.message ?? "Dados inválidos.", 422)
   }
 
-  // WHATSAPP conversations: real (or mocked) send via the Graph API. The
-  // send-service enforces integration/window/token; the destination phone comes
-  // from the Conversation, never the frontend. INTERNAL_SIMULATOR is unchanged.
+  // WHATSAPP conversations: real (or mocked) send routed by the clinic's provider
+  // (Meta Cloud API or Evolution API). The send-service enforces provider gates
+  // (integration/window/token/env); the destination phone comes from the
+  // Conversation, never the frontend. INTERNAL_SIMULATOR is unchanged.
   if (conversation.channel === "WHATSAPP") {
     if (!canSendWhatsAppMessage(auth.user.role)) {
       return errorResponse("Você não tem permissão para enviar mensagens pelo WhatsApp.", 403)
     }
-    if (!getWhatsAppSendFlags().sendMessagesEnabled) {
-      return errorResponse("Envio real pelo WhatsApp está desativado nas configurações.", 409)
-    }
-    const result = await sendWhatsAppTextMessage({
+    const result = await sendConversationText({
       clinicId: auth.user.clinicId,
       conversationId: conversation.id,
       text: parsed.data.content,

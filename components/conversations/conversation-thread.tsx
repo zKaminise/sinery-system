@@ -91,6 +91,11 @@ export function ConversationThread({
                 <MessageCircle className="size-3" /> WhatsApp
               </span>
             )}
+            {conversation.isEvolution && (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                Evolution
+              </span>
+            )}
           </div>
           <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
             <Phone className="size-3" />

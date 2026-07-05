@@ -68,6 +68,8 @@ export interface ConversationDetail {
   assignedUserName: string | null
   createdAt: string
   updatedAt: string
+  /** True when this WhatsApp conversation flows through the Evolution provider. */
+  isEvolution: boolean
   messages: ConversationMessageItem[]
   /** WhatsApp send state (only meaningful for channel WHATSAPP). */
   whatsApp: WhatsAppSendState | null
@@ -281,6 +283,7 @@ export async function getConversationDetail(
     assignedUserName: conv.assignedUser?.name ?? null,
     createdAt: conv.createdAt.toISOString(),
     updatedAt: conv.updatedAt.toISOString(),
+    isEvolution: conv.messages.some((m) => ((m.metadata ?? null) as { source?: string } | null)?.source === "EVOLUTION_API"),
     messages: conv.messages.map((m) => {
       const meta = (m.metadata ?? null) as { userName?: string } | null
       return {

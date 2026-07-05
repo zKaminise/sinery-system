@@ -9,6 +9,11 @@ import { logger } from "@/lib/logger"
 import { ErrorState } from "@/components/common/error-state"
 import { WhatsAppIntegrationPanel } from "@/components/whatsapp/whatsapp-integration-panel"
 import { getWhatsAppIntegration } from "@/lib/whatsapp/whatsapp-queries"
+import { prisma } from "@/lib/prisma"
+import { getEvolutionSafeConfig } from "@/lib/evolution/evolution-config"
+import { getMessagingAppEnv } from "@/lib/messaging/messaging-config"
+import { normalizeMessagingProvider, messagingProviderLabel } from "@/lib/messaging/messaging-types"
+import { MessagingProviderCard } from "@/components/messaging/messaging-provider-card"
 
 export const metadata: Metadata = {
   title: "WhatsApp Cloud API — Sinery System",
@@ -60,5 +65,37 @@ export default async function WhatsAppConfigPage() {
     )
   }
 
-  return <WhatsAppIntegrationPanel integration={integration} canManage={canManageWhatsAppIntegration(user.role)} />
+  // Messaging provider summary (Prompt 24) — safe (no secrets). Shows the
+  // clinic's provider + Evolution status when applicable.
+  const evo = getEvolutionSafeConfig()
+  const clinicProvider = normalizeMessagingProvider(integration.provider)
+  const evoTimes = await prisma.whatsAppIntegration
+    .findUnique({ where: { clinicId: user.clinicId }, select: { lastEvolutionMessageReceivedAt: true, lastEvolutionMessageSentAt: true, evolutionInstanceName: true } })
+    .catch(() => null)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <MessagingProviderCard
+        appEnv={getMessagingAppEnv()}
+        clinicProviderLabel={messagingProviderLabel(clinicProvider)}
+        isEvolution={clinicProvider === "EVOLUTION_API"}
+        evolution={{
+          enabled: evo.enabled,
+          allowedHere: evo.allowedHere,
+          configured: evo.configured,
+          webhookEnabled: evo.webhookEnabled,
+          sendMessagesEnabled: evo.sendMessagesEnabled,
+          sendMockMode: evo.sendMockMode,
+          autoProcessAssist: evo.autoProcessAssist,
+          assistReplyEnabled: evo.assistReplyEnabled,
+          instanceName: evoTimes?.evolutionInstanceName ?? evo.instanceName,
+          hasApiKey: evo.hasApiKey,
+          hasWebhookSecret: evo.hasWebhookSecret,
+          lastReceivedAt: evoTimes?.lastEvolutionMessageReceivedAt?.toLocaleString("pt-BR") ?? null,
+          lastSentAt: evoTimes?.lastEvolutionMessageSentAt?.toLocaleString("pt-BR") ?? null,
+        }}
+      />
+      <WhatsAppIntegrationPanel integration={integration} canManage={canManageWhatsAppIntegration(user.role)} />
+    </div>
+  )
 }

@@ -31,10 +31,14 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files — real envs are NEVER committed (contain secrets).
+# NOTE: production "cola" uses .env.prd.local (NOT .env.production.local), because
+# `next build` (NODE_ENV=production) auto-loads .env.production.local and a local
+# build would then hit the production DB. Both are covered by .env*.local below.
 .env
 .env.local
 .env.staging.local
 .env.production.local
+.env.prd.local
 .env*.local
 # ...but the *.example templates ARE committed (no secrets, only placeholders).
 !.env.example
